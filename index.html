@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>勇闯d6地牢</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>勇闯d6地牢</h1>
+  </header>
+
+  <main>
+    <div id="left-panel">
+      <canvas id="map" width="700" height="500"></canvas>
+      
+      <div id="log">
+        <h2>冒险日志</h2>
+        <div id="logContent"></div>
+      </div>
+    </div>
+
+    <section id="hud">
+      <div id="party">
+        <h2>队伍</h2>
+        <ul id="characters"></ul>
+      </div>
+
+      <div id="controls">
+        </div>
+      
+      <div id="inventoryPanel">
+        <h2>🎒 背包 <span id="goldDisplay" style="float:right; font-size:0.9em">0 G</span></h2>
+        <ul id="itemList">
+          <li style="color:#777; font-style:italic">空空如也...</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <div id="diceOverlay">
+    <div style="font-size:24px; margin-bottom:20px; font-weight:bold; font-family:'Special Elite', monospace">命运判定中...</div>
+    <div id="diceContainer"></div>
+  </div>
+  <script src="data.js"></script>
+  <script src="state.js"></script>
+  <script src="utils.js"></script>
+  <script src="ui.js"></script>
+  <script src="inventory.js"></script>
+  <script src="combat.js"></script>
+  <script src="dungeon.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

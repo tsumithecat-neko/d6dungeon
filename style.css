@@ -1,0 +1,195 @@
+/* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Special+Elite&display=swap');
+
+:root {
+  --paper-bg: #f4f1ea;
+  --ink-color: #2c2c2c;
+  --pencil-gray: #555;
+  --highlight: #b71c1c;
+  --grid-line: #e0ded8;
+}
+
+body {
+  font-family: 'Patrick Hand', 'Comic Sans MS', cursive, sans-serif;
+  background-color: var(--paper-bg);
+  background-image: 
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 20px 20px;
+  color: var(--ink-color);
+  margin: 0;
+  padding: 20px;
+}
+
+header h1 {
+  font-family: 'Special Elite', monospace;
+  text-align: center;
+  border-bottom: 3px double var(--ink-color);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+/* --- 核心布局修改 --- */
+main {
+  display: grid;
+  /* 左侧自适应，右侧固定宽度 */
+  grid-template-columns: 1fr 340px; 
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+  align-items: start; /* 顶部对齐 */
+}
+
+/* 左侧面板：包含 Canvas 和 Log，垂直排列 */
+#left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+#map {
+  background: #fff;
+  border: 3px solid var(--ink-color);
+  box-shadow: 4px 4px 0 rgba(0,0,0,0.1);
+  width: 100%; /* 自适应宽度 */
+  height: auto;
+  display: block;
+}
+
+/* 右侧 HUD 面板 */
+#hud {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+/* 面板通用样式 */
+#party, #controls, #inventoryPanel, #log {
+  background: #fff;
+  border: 2px solid var(--ink-color);
+  padding: 15px;
+  box-shadow: 3px 3px 0 rgba(0,0,0,0.05);
+}
+
+/* 日志区域样式调整 */
+#log {
+  /* 日志现在位于左侧下方 */
+  border: 2px solid var(--ink-color);
+}
+
+#logContent {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.95em;
+  height: 180px; /* 固定高度，避免太长 */
+  overflow-y: auto;
+  border-top: 1px dashed #ccc;
+  padding-top: 10px;
+  background-image: repeating-linear-gradient(white 0px, white 24px, #f0f0f0 25px);
+  line-height: 25px;
+}
+
+#logContent div {
+  padding: 0 5px;
+}
+
+/* 按钮样式 */
+button {
+  font-family: 'Patrick Hand', cursive;
+  font-size: 1.1em;
+  background: #fff;
+  border: 2px solid var(--ink-color);
+  color: var(--ink-color);
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: 2px 2px 0 #ccc;
+  margin-bottom: 5px;
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  transition: transform 0.1s;
+}
+button:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink-color); }
+button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+button:disabled { border-color: #ccc; color: #ccc; box-shadow: none; cursor: not-allowed; }
+
+.useBtn { font-size: 0.9em; padding: 2px 8px; margin-left: 5px; }
+
+/* 骰子遮罩层样式 (必须有 z-index) */
+#diceOverlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(244, 241, 234, 0.95); /* 米色遮罩 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999; /* 确保在最上层 */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+#diceOverlay.active {
+  visibility: visible;
+  opacity: 1;
+}
+
+#diceContainer {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 800px;
+}
+
+/* 骰子样式 */
+.die {
+  width: 60px; height: 60px;
+  background-color: #fff;
+  border: 2px solid #000;
+  border-radius: 6px;
+  box-shadow: 4px 4px 0 #000;
+  display: grid;
+  padding: 8px;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+}
+.pip { background-color: #000; border-radius: 50%; width: 10px; height: 10px; place-self: center; }
+
+/* 点数布局 */
+.die[data-val="1"] .pip:nth-child(1) { grid-area: 2 / 2; }
+.die[data-val="2"] .pip:nth-child(1) { grid-area: 1 / 1; } .die[data-val="2"] .pip:nth-child(2) { grid-area: 3 / 3; }
+.die[data-val="3"] .pip:nth-child(1) { grid-area: 1 / 1; } .die[data-val="3"] .pip:nth-child(2) { grid-area: 2 / 2; } .die[data-val="3"] .pip:nth-child(3) { grid-area: 3 / 3; }
+.die[data-val="4"] .pip:nth-child(1) { grid-area: 1 / 1; } .die[data-val="4"] .pip:nth-child(2) { grid-area: 1 / 3; } .die[data-val="4"] .pip:nth-child(3) { grid-area: 3 / 1; } .die[data-val="4"] .pip:nth-child(4) { grid-area: 3 / 3; }
+.die[data-val="5"] .pip:nth-child(1) { grid-area: 1 / 1; } .die[data-val="5"] .pip:nth-child(2) { grid-area: 1 / 3; } .die[data-val="5"] .pip:nth-child(3) { grid-area: 2 / 2; } .die[data-val="5"] .pip:nth-child(4) { grid-area: 3 / 1; } .die[data-val="5"] .pip:nth-child(5) { grid-area: 3 / 3; }
+.die[data-val="6"] .pip:nth-child(1) { grid-area: 1 / 1; } .die[data-val="6"] .pip:nth-child(2) { grid-area: 1 / 3; } .die[data-val="6"] .pip:nth-child(3) { grid-area: 2 / 1; } .die[data-val="6"] .pip:nth-child(4) { grid-area: 2 / 3; } .die[data-val="6"] .pip:nth-child(5) { grid-area: 3 / 1; } .die[data-val="6"] .pip:nth-child(6) { grid-area: 3 / 3; }
+
+/* 暴击样式 */
+.die.crit { border-color: var(--highlight); box-shadow: 4px 4px 0 var(--highlight); }
+.die.crit .pip { background-color: var(--highlight); }
+
+/* 骰子动画 */
+@keyframes shake {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  25% { transform: translate(-2px, 1px) rotate(2deg); }
+  50% { transform: translate(2px, -2px) rotate(-1deg); }
+  75% { transform: translate(-1px, 2px) rotate(1deg); }
+  100% { transform: translate(1px, -1px) rotate(0deg); }
+}
+.die.rolling { animation: shake 0.1s infinite; }
+
+/* 日志里的小骰子图标 */
+.log-die {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 1px solid #000;
+    border-radius: 2px;
+    text-align: center;
+    line-height: 14px;
+    font-size: 10px;
+    font-weight: bold;
+    margin: 0 2px;
+    background: #fff; color: #000;
+}
+.log-die.crit { border-color: var(--highlight); color: var(--highlight); }
+
+@media (max-width: 900px){
+  main { grid-template-columns: 1fr; }
+}
