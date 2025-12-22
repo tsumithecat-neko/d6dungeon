@@ -1,22 +1,27 @@
 // main.js
 
-// 暴露给 UI 调用的函数
-window.addCharacter = function(raceKey, classKey) {
+// 暴露给 UI 调用的函数 (新增 customName 参数)
+window.addCharacter = function(raceKey, classKey, customName) {
     if (party.length >= 4) return;
     
     const rData = RACES[raceKey];
     const cData = CLASS_BASE_STATS[classKey];
     
-    // 计算最终属性 = 职业基础 + 种族修正
+    // 计算最终属性
     const finalHp = cData.hp + rData.hp;
     const finalMp = cData.mp + rData.mp;
     const finalAtt = cData.att + rData.att;
     
+    // 名字逻辑：如果有自定义名字且不为空，用自定义的；否则用默认的“种族+职业”
+    const finalName = (customName && customName.trim() !== "") 
+                      ? customName 
+                      : `${rData.name}${cData.name}`;
+
     const newChar = {
-        name: `${rData.name}${cData.name}`, // 自动命名，如“矮人战士”
+        name: finalName,
         raceName: rData.name,
         className: cData.name,
-        class: classKey, // 用于查找技能
+        class: classKey, 
         race: raceKey,
         
         hp: finalHp,
@@ -38,7 +43,6 @@ window.startGame = function() {
     }
     
     // 初始化地牢
-    // 清空旧数据
     for(let key in dungeon) delete dungeon[key];
     combatState.active = false;
     inventory.items = []; 
@@ -62,12 +66,8 @@ window.startGame = function() {
 function initGame(){
   // 仅设置状态，等待玩家操作
   gameState = 'CREATION';
-  party.length = 0; // 确保清空
-  
-  // 启动 UI 循环
+  party.length = 0; 
   updateUI();
-  
-  // 不再自动添加日志，因为还没开始
 }
 
 // 启动
