@@ -12,14 +12,11 @@ window.TILE_SIZE = 20; // 格子稍微大一点
 
 // 主 UI 更新入口
 function updateUI() {
-  // 1. 创建角色阶段
   if (gameState === 'CREATION') {
-      // 绘制背景
-      ctx.fillStyle = '#f4f1ea'; // 米色纸张
+      ctx.fillStyle = '#f4f1ea'; 
       ctx.fillRect(0,0,canvas.width,canvas.height);
-      drawGrid(ctx, canvas.width, canvas.height); // 画网格
+      drawGrid(ctx, canvas.width, canvas.height); 
 
-      // 绘制标题艺术字
       ctx.fillStyle = INK_COLOR;
       ctx.font = '30px "Special Elite", monospace';
       ctx.textAlign = 'center';
@@ -35,7 +32,6 @@ function updateUI() {
       return;
   }
 
-  // 2. 正常游戏阶段
   drawMap();
   renderParty();
   renderControls();
@@ -269,12 +265,25 @@ function renderCreation() {
     form.style.border = "2px solid #222";
     form.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.1)";
     
+    // 1. 姓名输入 (新增)
+    const nameLabel = document.createElement('div');
+    nameLabel.innerHTML = "<b>1. 姓名 (可选):</b>";
+    form.appendChild(nameLabel);
+    
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = '请输入英雄大名...';
+    // 纸笔风格输入框
+    nameInput.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:'Patrick Hand', cursive; font-size:1.1em; color:#000; box-sizing: border-box;";
+    form.appendChild(nameInput);
+
+    // 2. 种族选择
     const raceLabel = document.createElement('div');
-    raceLabel.innerHTML = "<b>1. 种族:</b>";
+    raceLabel.innerHTML = "<b>2. 种族:</b>";
     form.appendChild(raceLabel);
     
     const raceSelect = document.createElement('select');
-    raceSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555;";
+    raceSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
     Object.keys(RACES).forEach(key => {
         const r = RACES[key];
         const opt = document.createElement('option');
@@ -284,12 +293,13 @@ function renderCreation() {
     });
     form.appendChild(raceSelect);
 
+    // 3. 职业选择
     const classLabel = document.createElement('div');
-    classLabel.innerHTML = "<b>2. 职业:</b>";
+    classLabel.innerHTML = "<b>3. 职业:</b>";
     form.appendChild(classLabel);
 
     const classSelect = document.createElement('select');
-    classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555;";
+    classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
     Object.keys(CLASS_BASE_STATS).forEach(key => {
         const c = CLASS_BASE_STATS[key];
         const opt = document.createElement('option');
@@ -303,9 +313,10 @@ function renderCreation() {
     addBtn.textContent = "➕ 登记角色";
     addBtn.style.cssText = "width:100%; padding:10px; background:#eee; color:#000; border:2px solid #000; cursor:pointer; font-weight:bold";
     addBtn.onclick = () => {
+        const nameVal = nameInput.value;
         const rKey = raceSelect.value;
         const cKey = classSelect.value;
-        if (window.addCharacter) window.addCharacter(rKey, cKey);
+        if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); // 传入名字
     };
     form.appendChild(addBtn);
 
