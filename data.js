@@ -149,6 +149,16 @@ const CLASS_SKILLS = {
     }
 };
 
+// --- 新增：职业升级成长表 ---
+const CLASS_GROWTH = {
+    warrior: { hp: 2, mp: 0, att: 1, desc: "体格强化 (HP+2, 攻+1)" }, // 战士越战越勇
+    rogue:   { hp: 1, mp: 1, att: 1, desc: "技巧磨练 (HP+1, MP+1, 攻+1)" }, // 均衡
+    wizard:  { hp: 1, mp: 2, att: 0, desc: "魔力源泉 (MP+2, HP+1)" }, // 法师堆蓝
+    cleric:  { hp: 1, mp: 2, att: 0, desc: "信仰加深 (MP+2, HP+1)" }, 
+    paladin: { hp: 2, mp: 1, att: 0, desc: "圣光护体 (HP+2, MP+1)" }, 
+    ranger:  { hp: 1, mp: 1, att: 1, desc: "狩猎本能 (HP+1, MP+1, 攻+1)" }
+};
+
 // 怪物池
 const MONSTER_POOLS = {
   minion: [ { name: "骷髅兵", count: 4, att: 0 }, { name: "变异巨鼠", count: 5, att: 0 }, { name: "地精斥候", count: 3, att: 1 }, { name: "吸血蝙蝠", count: 4, att: 0 } ],
