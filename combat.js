@@ -168,15 +168,71 @@ function endCombat(win) {
     addLog(`🎉 战斗胜利！`);
     gameState = 'EXPLORING';
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
+    
+    // 1. 计算 XP 奖励
+    // 小怪战给 2 XP，Boss战给 5 XP
+    const xpGain = (combatState.type === 'boss') ? 5 : 2;
+    addLog(`全员获得 ${xpGain} 点经验值。`);
+
+    // 2. 分配 XP 并检查升级
+    party.forEach(p => {
+        if (p.hp > 0) { // 只有活人才拿经验
+            gainXp(p, xpGain);
+        }
+    });
+
+    // 3. 掉落逻辑 (保持不变)
     const lootRoll = d6();
     if (lootRoll >= 5) gainLoot('item'); 
     else if (lootRoll >= 3) gainLoot('gold'); 
     else addLog("并没有发现什么有价值的东西。");
+    
   } else {
     addLog(`💀 队伍全灭...`);
     gameState = 'GAMEOVER';
   }
   updateUI();
+}
+
+// --- 新增：处理经验获取与升级 ---
+function gainXp(char, amount) {
+    char.xp += amount;
+    
+    // 检查是否升级
+    if (char.xp >= char.maxXp) {
+        levelUp(char);
+    }
+}
+
+function levelUp(char) {
+    // 消耗经验 (或者保留溢出经验，这里简单处理：扣除当前上限)
+    char.xp -= char.maxXp;
+    char.lvl++;
+    
+    // 下一级所需经验增加 (比如每次 +5)
+    char.maxXp += 5;
+
+    // 获取职业成长数据
+    const growth = CLASS_GROWTH[char.class] || { hp:1, mp:1, att:0, desc:"通用成长" };
+
+    // 提升属性
+    char.maxHp += growth.hp;
+    char.maxMp += growth.mp;
+    char.att += growth.att;
+
+    // 升级福利：状态全满
+    char.hp = char.maxHp;
+    char.mp = char.maxMp;
+
+    // 播放日志特效
+    const upIcon = "🆙";
+    addLog(`${upIcon} <b>${char.name} 升到了 Lv.${char.lvl}！</b>`);
+    addLog(`<span style="color:#ffd700; margin-left:20px">${growth.desc} (HP/MP全回复)</span>`);
+    
+    // 递归检查（防止一次获得巨量经验连升两级的情况）
+    if (char.xp >= char.maxXp) {
+        levelUp(char);
+    }
 }
 
 function tryFlee() {
