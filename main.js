@@ -12,7 +12,6 @@ window.addCharacter = function(raceKey, classKey, customName) {
     const finalMp = cData.mp + rData.mp;
     const finalAtt = cData.att + rData.att;
     
-    // 名字逻辑：如果有自定义名字且不为空，用自定义的；否则用默认的“种族+职业”
     const finalName = (customName && customName.trim() !== "") 
                       ? customName 
                       : `${rData.name}${cData.name}`;
@@ -29,7 +28,11 @@ window.addCharacter = function(raceKey, classKey, customName) {
         mp: finalMp,
         maxMp: finalMp,
         att: finalAtt,
-        lvl: 1
+        lvl: 1,
+        
+        // --- 新增：经验值初始化 ---
+        xp: 0,
+        maxXp: 10 // 1级升2级需要10点XP
     };
     
     party.push(newChar);
