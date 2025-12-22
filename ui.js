@@ -200,16 +200,18 @@ function renderParty(){
   party.forEach(p=>{
     const li = document.createElement('li');
     
-    // 样式调整：像角色卡
-    li.style.borderBottom = "1px dashed #ccc";
-    li.style.paddingBottom = "6px";
+    li.style.borderBottom = "1px dashed #ccc"; 
+    li.style.paddingBottom = "6px"; 
     li.style.marginBottom = "6px";
     
     const maxHp = p.maxHp || p.hp || 1; 
     const maxMp = p.maxMp || p.mp || 1;
-    
+    // 容错处理：确保 maxXp 存在 (针对旧存档兼容)
+    if (!p.maxXp) p.maxXp = p.lvl * 5 + 5; 
+    if (p.xp === undefined) p.xp = 0;
+
     // ASCII 进度条
-    const hpBars = Math.ceil(p.hp / 2); // 2血一格
+    const hpBars = Math.ceil(p.hp / 2); 
     const hpStr = '▮'.repeat(Math.max(0, hpBars)).padEnd(Math.ceil(maxHp/2), '▯');
     
     const mpBars = p.mp;
@@ -217,12 +219,31 @@ function renderParty(){
     
     const descText = p.raceName ? `${p.raceName} ${p.className}` : p.class;
 
+    // 计算 XP 百分比用于绘制简单的 CSS 条
+    const xpPct = (p.xp / p.maxXp) * 100;
+
     li.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
-          <div style="font-weight:bold; font-size:1.1em">${p.name} <span style="font-size:0.8em; font-weight:normal; color:#555">(${descText})</span></div>
+          <div style="font-weight:bold; font-size:1.1em">
+             ${p.name} <span style="font-size:0.7em; background:#222; color:#fff; padding:1px 4px; border-radius:3px">Lv.${p.lvl}</span>
+             <span style="font-size:0.8em; font-weight:normal; color:#555">(${descText})</span>
+          </div>
       </div>
-      <div style="font-family:monospace; margin-top:2px; color:#b71c1c; font-size:1.1em">HP: ${hpStr} <span style="color:#000; font-size:0.7em">(${p.hp}/${maxHp})</span></div>
-      <div style="font-family:monospace; color:#1565c0; font-size:1.1em">MP: ${mpStr} <span style="color:#000; font-size:0.7em">(${p.mp}/${maxMp})</span></div>
+      
+      <div style="font-family:monospace; margin-top:4px; color:#b71c1c; font-size:1.1em; line-height:1.2">
+        HP: ${hpStr} <span style="color:#000; font-size:0.7em">(${p.hp}/${maxHp})</span>
+      </div>
+      <div style="font-family:monospace; color:#1565c0; font-size:1.1em; line-height:1.2">
+        MP: ${mpStr} <span style="color:#000; font-size:0.7em">(${p.mp}/${maxMp})</span>
+      </div>
+      
+      <div style="margin-top:4px; display:flex; align-items:center; gap:5px">
+        <div style="font-size:0.8em; color:#e65100; font-weight:bold">XP</div>
+        <div style="flex:1; height:4px; background:#ddd; border-radius:2px; overflow:hidden">
+            <div style="width:${xpPct}%; height:100%; background:#ff9800;"></div>
+        </div>
+        <div style="font-size:0.7em; color:#666">${p.xp}/${p.maxXp}</div>
+      </div>
     `;
     if (p.hp <= 0) {
         li.style.opacity = '0.5';
