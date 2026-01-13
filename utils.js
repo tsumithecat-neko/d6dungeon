@@ -41,3 +41,68 @@ function logDieIcon(val) {
     const isCrit = (val === 6);
     return `<span class="log-die ${isCrit?'crit':''}">${val}</span>`;
 }
+
+// 导出存档为字符串
+function exportSaveGame() {
+    const saveData = {
+        party,
+        dungeon,
+        inventory,
+        gameState,
+        playerRoomId,
+        combatState,
+        timestamp: Date.now(),
+        version: 1.0
+    };
+
+    try {
+        const jsonString = JSON.stringify(saveData);
+        // 处理中文编码并转为 Base64，防止乱码和换行
+        const saveCode = btoa(unescape(encodeURIComponent(jsonString)));
+        return saveCode;
+    } catch (e) {
+        console.error("导出失败:", e);
+        return null;
+    }
+}
+
+// 从字符串导入存档
+function importSaveGame(saveCode) {
+    if (!saveCode) return false;
+    
+    try {
+        // Base64 解码并还原中文
+        const jsonString = decodeURIComponent(escape(atob(saveCode)));
+        const data = JSON.parse(jsonString);
+
+        // 简单的版本检查 (可选)
+        // if (data.version !== 1.0) { alert("存档版本不匹配"); return false; }
+
+        // 1. 恢复队伍
+        party.length = 0;
+        data.party.forEach(p => party.push(p));
+
+        // 2. 恢复地牢数据 (必须清空原对象再赋值，保持引用)
+        for (let key in dungeon) delete dungeon[key];
+        Object.assign(dungeon, data.dungeon);
+
+        // 3. 恢复背包
+        inventory.gold = data.inventory.gold;
+        inventory.items = data.inventory.items;
+
+        // 4. 恢复其他状态
+        gameState = data.gameState;
+        playerRoomId = data.playerRoomId;
+        
+        // 恢复 combatState (如果是引用替换，需要 assign)
+        Object.assign(combatState, data.combatState);
+
+        addLog(`💾 读档成功！时间: ${new Date(data.timestamp).toLocaleString()}`);
+        updateUI();
+        return true;
+    } catch (e) {
+        console.error(e);
+        alert("存档代码无效或已损坏！");
+        return false;
+    }
+}

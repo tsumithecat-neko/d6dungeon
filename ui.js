@@ -279,6 +279,12 @@ function renderCreation() {
         container.appendChild(resetBtn);
         return;
     }
+    
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = "💾 读取旧的记忆";
+    loadBtn.style.cssText = "width:100%; padding:8px; background:#efefef; color:#333; margin-top:10px; border:1px solid #999; cursor:pointer";
+    loadBtn.onclick = () => showSaveLoadMenu();
+    container.appendChild(loadBtn);
 
     const form = document.createElement('div');
     form.style.background = "#fff";
@@ -404,7 +410,6 @@ function renderControls(){
         doorsDiv.appendChild(dBtn);
     });
     container.appendChild(doorsDiv);
-
   } 
   // --- 战斗模式 ---
   else if (gameState === 'COMBAT') {
@@ -474,7 +479,6 @@ function renderControls(){
     combatPanel.appendChild(fleeBtn);
 
     container.appendChild(combatPanel);
-    
   } 
   // --- 游戏结束 ---
   else if (gameState === 'GAMEOVER') {
@@ -484,6 +488,17 @@ function renderControls(){
     rBtn.onclick = () => location.reload();
     container.appendChild(rBtn);
   }
+
+    const hr = document.createElement('hr');
+    hr.style.cssText = "margin: 15px 0; border: 0; border-top: 1px dashed #ccc;";
+    container.appendChild(hr);
+
+    const systemBtn = document.createElement('button');
+    systemBtn.innerHTML = "💾 系统 / 存读档";
+    systemBtn.style.width = "100%";
+    systemBtn.style.fontSize = "0.9em";
+    systemBtn.onclick = () => showSaveLoadMenu();
+    container.appendChild(systemBtn);
 }
 
 // --- 5. 背包渲染 (Use -> ShowTarget) ---
@@ -633,4 +648,81 @@ function rollDiceAnim(diceRequests, callback) {
         }, 1200); 
 
     }, 800); 
+}
+
+function showSaveLoadMenu() {
+    const overlay = document.getElementById('diceOverlay');
+    const container = document.getElementById('diceContainer');
+    
+    overlay.classList.add('active');
+    container.innerHTML = ''; // 清空原有内容
+
+    // 标题
+    const title = document.createElement('h2');
+    title.textContent = "💾 灵魂记录 (存/读档)";
+    title.style.width = "100%";
+    title.style.textAlign = "center";
+    title.style.fontFamily = '"Special Elite", monospace';
+    container.appendChild(title);
+
+    // --- 导出区域 ---
+    const exportBox = document.createElement('div');
+    exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px dashed #555; background: #fff;";
+    
+    const exportBtn = document.createElement('button');
+    exportBtn.textContent = "📤 生成当前存档代码";
+    exportBtn.style.width = "100%";
+    exportBtn.onclick = () => {
+        const code = window.exportSaveGame ? window.exportSaveGame() : "Error";
+        if(code) {
+            codeArea.value = code;
+            codeArea.select();
+            // 尝试自动复制
+            navigator.clipboard.writeText(code).then(() => {
+                alert("存档代码已自动复制到剪贴板！");
+            }).catch(() => {
+                alert("已生成。请全选并复制下方的代码。");
+            });
+        }
+    };
+    exportBox.appendChild(exportBtn);
+
+    const codeArea = document.createElement('textarea');
+    codeArea.placeholder = "点击上方按钮生成存档代码，然后复制保存...";
+    codeArea.style.cssText = "width: 100%; height: 80px; margin-top: 10px; font-size: 12px; resize: none; border: 1px solid #ccc;";
+    exportBox.appendChild(codeArea);
+    
+    container.appendChild(exportBox);
+
+    // --- 导入区域 ---
+    const importBox = document.createElement('div');
+    importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px solid #2e7d32; background: #e8f5e9;";
+
+    const importInput = document.createElement('textarea');
+    importInput.placeholder = "在此粘贴存档代码以恢复进度...";
+    importInput.style.cssText = "width: 100%; height: 60px; margin-bottom: 10px; font-size: 12px; resize: none; border: 1px solid #2e7d32;";
+    importBox.appendChild(importInput);
+
+    const importBtn = document.createElement('button');
+    importBtn.textContent = "📥 读取存档";
+    importBtn.style.cssText = "width: 100%; background: #2e7d32; color: white;";
+    importBtn.onclick = () => {
+        const code = importInput.value.trim();
+        if (!code) return;
+        if (window.confirm("确定要读取存档吗？当前未保存的进度将丢失。")) {
+            const success = window.importSaveGame(code);
+            if (success) {
+                overlay.classList.remove('active');
+            }
+        }
+    };
+    importBox.appendChild(importBtn);
+
+    container.appendChild(importBox);
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = "关闭";
+    closeBtn.onclick = () => overlay.classList.remove('active');
+    container.appendChild(closeBtn);
 }
