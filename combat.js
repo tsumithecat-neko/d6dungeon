@@ -4,13 +4,12 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
-  // --- 修改点：难度系数 Scaling 增强 ---
-  // 血量成长倍率从 30% 提升到 50%
+  // --- 难度系数 Scaling (方案3保留) ---
+  // 血量成长倍率 50%
   const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
   enemyData.hp = Math.floor(enemyData.hp * multiplier);
   
-  // 攻击力成长：修改为每升 1 级，敌人攻击力 +0.8 (向下取整)
-  // 相比原来的 (level-1)/2，攻击力增长更陡峭
+  // 攻击力成长：每级 +0.8
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
   // ------------------------------------
   
@@ -90,15 +89,13 @@ function fightRound() {
           const idx = party.indexOf(p);
           const roll = results[idx];
           
-          // --- 6点再动逻辑 ---
+          // 6点再动逻辑
           if (roll === 6) {
               addLog(`🎲 <b>${p.name} 骰出了 6！气势如虹，获得额外行动机会！</b>`);
               if (p.mp < p.maxMp) p.mp++;
-              // 注意：这里不把 idx 加入 actedIndices，所以他还能动
           } else {
               combatState.actedIndices.push(idx);
           }
-          // ------------------
 
           const bonus = (p.class === 'warrior') ? p.lvl : 0; 
           const weaponAtt = p.equipment?.weapon?.att || 0;
@@ -122,10 +119,8 @@ function fightRound() {
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
 
-      // --- 胜利检查 ---
       if (checkWin()) return; 
 
-      // --- 额外行动阶段 ---
       const remainingActs = party.filter((p, i) => p.hp > 0 && !combatState.actedIndices.includes(i)).length;
 
       if (remainingActs === 0) {
@@ -178,23 +173,41 @@ function endCombat(win) {
         if (p.hp > 0) gainXp(p, xpGain);
     });
 
-    const lootRoll = d6();
-    if (lootRoll >= 5) gainLoot('item'); 
-    else if (lootRoll >= 3) gainLoot('gold'); 
-    else addLog("并没有发现什么有价值的东西。");
+    // --- 修复点 1：BOSS 战必掉宝物 ---
+    if (combatState.type === 'boss') {
+        addLog("✨ 击败地牢领主，你在王座下发现了一个华丽的宝箱！");
+        gainLoot('item'); // 强制获得物品
+    } else {
+        // 普通战斗：随机掉落
+        const lootRoll = d6();
+        if (lootRoll >= 5) gainLoot('item'); 
+        else if (lootRoll >= 3) gainLoot('gold'); 
+        else addLog("并没有发现什么有价值的东西。");
+    }
+    // -------------------------------
 
-    // BOSS 战回城逻辑
+    // --- 修复点 2：BOSS 战只能直接回城 ---
     if (combatState.type === 'boss') {
         addLog("🎉 恭喜！你击败了地牢的领主！城镇的灯火在远处召唤...");
-        const btn = document.createElement('button');
-        btn.innerHTML = "🏠 <b>凯旋回城 (结算)</b>";
-        btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
-        btn.onclick = () => window.enterTown();
         
-        setTimeout(() => {
-            const controls = document.getElementById('controls');
-            if(controls) controls.prepend(btn);
-        }, 100);
+        // 先手动调用 updateUI 绘制地图和背景
+        updateUI();
+        
+        // 然后强制清空控制面板，只显示回城按钮
+        const controls = document.getElementById('controls');
+        if(controls) {
+            controls.innerHTML = ''; // 清除搜寻、移动按钮
+            
+            const btn = document.createElement('button');
+            btn.innerHTML = "🏠 <b>凯旋回城 (结算)</b>";
+            btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
+            btn.onclick = () => window.enterTown();
+            
+            controls.appendChild(btn);
+        }
+        
+        // 重要：直接返回，不执行最后的 updateUI()，否则会覆盖掉上面的修改
+        return; 
     }
     
   } else {
@@ -221,19 +234,16 @@ function levelUp(char) {
     char.maxMp += growth.mp;
     char.att += growth.att;
     
-    // --- 修改点：升级不再全回复 ---
-    // 仅回复“成长值 + 少量固定值”，不再直接设为 maxHp
+    // --- 方案2保留：限制升级回复量 ---
     const hpHeal = growth.hp + 2;
     const mpHeal = growth.mp + 2;
 
     char.hp = Math.min(char.maxHp, char.hp + hpHeal);
     char.mp = Math.min(char.maxMp, char.mp + mpHeal);
-    // ----------------------------
+    // -----------------------------
 
     const upIcon = "🆙";
     addLog(`${upIcon} <b>${char.name} 升到了 Lv.${char.lvl}！</b>`);
-    
-    // 更新提示文本
     addLog(`<span style="color:#ffd700; margin-left:20px">${growth.desc} (状态回复 +${hpHeal}/+${mpHeal})</span>`);
     
     if (char.xp >= char.maxXp) levelUp(char);
