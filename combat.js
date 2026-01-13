@@ -4,11 +4,9 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
-  // --- 新增：难度系数 scaling ---
-  // 每级增加 30% HP
+  // --- 难度系数 scaling ---
   const multiplier = 1 + (window.worldLevel - 1) * 0.3; 
   enemyData.hp = Math.floor(enemyData.hp * multiplier);
-  // 每2级加1点基础攻击
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) / 2);
   // ---------------------------
   
@@ -88,19 +86,20 @@ function fightRound() {
           const idx = party.indexOf(p);
           const roll = results[idx];
           
+          // --- 6点再动逻辑 ---
           if (roll === 6) {
               addLog(`🎲 <b>${p.name} 骰出了 6！气势如虹，获得额外行动机会！</b>`);
               if (p.mp < p.maxMp) p.mp++;
+              // 注意：这里不把 idx 加入 actedIndices，所以他还能动
           } else {
               combatState.actedIndices.push(idx);
           }
+          // ------------------
 
           const bonus = (p.class === 'warrior') ? p.lvl : 0; 
-          // --- 新增：武器攻击力加成 ---
           const weaponAtt = p.equipment?.weapon?.att || 0;
           const total = roll + p.att + weaponAtt + bonus;
-          // --------------------------
-
+          
           const rollIcon = logDieIcon(roll);
           
           if (total >= TO_HIT_TARGET) {
@@ -118,8 +117,15 @@ function fightRound() {
       });
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
-      if (checkWin()) return;
 
+      // --- 关键修改确认：胜利检查 ---
+      // 如果 checkWin() 返回 true，说明敌人全灭，
+      // 函数直接 return，不再执行下方的“计算剩余行动”逻辑。
+      // 这就实现了“如果敌人已被击败，直接跳过额外行动阶段”。
+      if (checkWin()) return; 
+
+      // --- 额外行动阶段 ---
+      // 只有战斗还在继续时，才会检查是否有人因为骰出6而剩下行动点
       const remainingActs = party.filter((p, i) => p.hp > 0 && !combatState.actedIndices.includes(i)).length;
 
       if (remainingActs === 0) {
@@ -149,7 +155,6 @@ function enemyTurn() {
         if (!target) break; 
         const roll = d6();
         if (roll + enemy.att >= TO_HIT_TARGET) {
-            // 这里可以加入防具减伤逻辑，暂时保持原样，让玩家堆血量
             target.hp -= 1;
             addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
         } else {
@@ -166,7 +171,6 @@ function endCombat(win) {
     gameState = 'EXPLORING';
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
-    // Boss战给5经验，小怪给2经验
     const xpGain = (combatState.type === 'boss') ? 5 : 2;
     addLog(`全员获得 ${xpGain} 点经验值。`);
 
@@ -179,7 +183,7 @@ function endCombat(win) {
     else if (lootRoll >= 3) gainLoot('gold'); 
     else addLog("并没有发现什么有价值的东西。");
 
-    // --- 新增：BOSS 战胜利后的回城逻辑 ---
+    // BOSS 战回城逻辑
     if (combatState.type === 'boss') {
         addLog("🎉 恭喜！你击败了地牢的领主！城镇的灯火在远处召唤...");
         const btn = document.createElement('button');
@@ -187,7 +191,6 @@ function endCombat(win) {
         btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
         btn.onclick = () => window.enterTown();
         
-        // 延时插入，确保 UI 渲染完毕
         setTimeout(() => {
             const controls = document.getElementById('controls');
             if(controls) controls.prepend(btn);
@@ -245,7 +248,6 @@ function tryFlee() {
   });
 }
 
-// --- 补回了丢失的 resolveEncounter 函数 ---
 function resolveEncounter(room){
   const enc = room.encounter;
   if (enc.main === 'none') { room._encounterResolved = true; return; }
@@ -261,7 +263,6 @@ function resolveEncounter(room){
     if (enc.subtype === '陷阱') {
         const p = randomAliveCharacter();
         if(p) { 
-            // 陷阱伤害随难度微调，但保持至少1点
             const dmg = 1; 
             p.hp -= dmg; 
             addLog(`咔嚓！触发了${enc.subtype}，${p.name} 受伤了 (-${dmg} HP)。`); 
