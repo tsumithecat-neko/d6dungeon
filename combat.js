@@ -4,11 +4,19 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
+  // --- 新增：难度系数 scaling ---
+  // 每级增加 30% HP
+  const multiplier = 1 + (window.worldLevel - 1) * 0.3; 
+  enemyData.hp = Math.floor(enemyData.hp * multiplier);
+  // 每2级加1点基础攻击
+  enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) / 2);
+  // ---------------------------
+  
   if (type === 'group') {
     if (!enemyData.count) enemyData.count = 1;
-    addLog(`⚔️ 敌人出现！${enemyData.name} x${enemyData.count} (ATK: ${enemyData.att})`);
+    addLog(`⚔️ 敌人出现 (Lv.${window.worldLevel})！${enemyData.name} x${enemyData.count} (ATK: ${enemyData.att})`);
   } else {
-    addLog(`💀 首领降临！${enemyData.name} (HP: ${enemyData.hp}, ATK: ${enemyData.att})`);
+    addLog(`💀 首领降临 (Lv.${window.worldLevel})！${enemyData.name} (HP: ${enemyData.hp}, ATK: ${enemyData.att})`);
   }
 
   // 初始化战斗状态
@@ -17,19 +25,17 @@ function initCombat(template, type) {
       type: type, 
       enemy: enemyData, 
       round: 1, 
-      actedIndices: [] // 记录谁这回合动过了
+      actedIndices: [] 
   };
   updateUI();
 }
 
 function useSkill(charIndex, skillData) {
   if (gameState !== 'COMBAT' || !combatState.active) return;
-  
   if (combatState.actedIndices.includes(charIndex)) {
       addLog("该角色本回合已经行动过了！");
       return;
   }
-  
   const user = party[charIndex];
   if (user.mp < skillData.cost) {
       addLog(`${user.name} MP不足！`);
@@ -37,7 +43,7 @@ function useSkill(charIndex, skillData) {
   }
 
   user.mp -= skillData.cost;
-  combatState.actedIndices.push(charIndex); // 技能通常还是消耗行动的（除非你希望技能也能暴击再动，这需要更复杂的改动）
+  combatState.actedIndices.push(charIndex); 
   
   addLog(`✨ ${user.name} 发动了 [${skillData.name}]！`);
   const resultLog = skillData.effect(user, combatState);
@@ -50,7 +56,6 @@ function useSkill(charIndex, skillData) {
 function fightRound() {
   if (gameState !== 'COMBAT' || !combatState.active) return;
   
-  // 找出还没动的角色进行普攻
   const requests = [];
   const activePartyMembers = []; 
 
@@ -61,23 +66,20 @@ function fightRound() {
       }
   });
 
-  // 定义回合结束的处理函数
   const finishTurn = () => {
       if (checkWin()) return;
       enemyTurn();
       combatState.round++;
-      combatState.actedIndices = []; // 回合结束，重置行动权
+      combatState.actedIndices = []; 
       updateUI();
   };
 
   if (requests.length === 0) {
-      // 这是一个容错处理，正常UI不会允许这种情况点击
       addLog("--- 所有人已完成行动 ---");
       finishTurn();
       return;
   }
 
-  // 普攻动画
   rollDiceAnim(requests, (results) => {
       const enemy = combatState.enemy;
       let hits = 0;
@@ -86,29 +88,29 @@ function fightRound() {
           const idx = party.indexOf(p);
           const roll = results[idx];
           
-          // --- 核心修改：6点再动逻辑 ---
           if (roll === 6) {
-              // 骰出6：不标记为已行动，且回蓝
               addLog(`🎲 <b>${p.name} 骰出了 6！气势如虹，获得额外行动机会！</b>`);
               if (p.mp < p.maxMp) p.mp++;
           } else {
-              // 非6：标记为本回合已行动
               combatState.actedIndices.push(idx);
           }
-          // ---------------------------
 
           const bonus = (p.class === 'warrior') ? p.lvl : 0; 
-          const total = roll + p.att + bonus;
+          // --- 新增：武器攻击力加成 ---
+          const weaponAtt = p.equipment?.weapon?.att || 0;
+          const total = roll + p.att + weaponAtt + bonus;
+          // --------------------------
+
           const rollIcon = logDieIcon(roll);
           
           if (total >= TO_HIT_TARGET) {
               hits++;
               if (combatState.type === 'group') {
                   enemy.count--;
-                  addLog(`${p.name} ${rollIcon} 命中！击杀敌人。`);
+                  addLog(`${p.name} ${rollIcon} 命中！(武器+${weaponAtt}) 击杀敌人。`);
               } else {
                   enemy.hp--;
-                  addLog(`${p.name} ${rollIcon} 命中！造成伤害。`);
+                  addLog(`${p.name} ${rollIcon} 命中！(武器+${weaponAtt}) 造成伤害。`);
               }
           } else {
               addLog(`${p.name} ${rollIcon} 攻击偏斜了。`);
@@ -116,21 +118,15 @@ function fightRound() {
       });
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
-
-      // 检查战斗是否直接胜利（胜利就不需要反击了）
       if (checkWin()) return;
 
-      // --- 核心修改：检查是否还有人有行动权 ---
-      // 重新计算剩余行动人数（因为有人可能骰了6，所以 combatState.actedIndices 没有包含所有人）
       const remainingActs = party.filter((p, i) => p.hp > 0 && !combatState.actedIndices.includes(i)).length;
 
       if (remainingActs === 0) {
-          // 所有人这轮都动完了，结束回合，敌人反击
           finishTurn();
       } else {
-          // 还有人能动（刚才骰出6的人），回合继续！
           addLog(`>>> ⚡ 还有 ${remainingActs} 次行动机会，回合继续！`);
-          updateUI(); // 刷新UI，让玩家继续操作
+          updateUI(); 
       }
   });
 }
@@ -153,6 +149,7 @@ function enemyTurn() {
         if (!target) break; 
         const roll = d6();
         if (roll + enemy.att >= TO_HIT_TARGET) {
+            // 这里可以加入防具减伤逻辑，暂时保持原样，让玩家堆血量
             target.hp -= 1;
             addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
         } else {
@@ -169,23 +166,33 @@ function endCombat(win) {
     gameState = 'EXPLORING';
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
-    // 1. 计算 XP 奖励
-    // 小怪战给 2 XP，Boss战给 5 XP
+    // Boss战给5经验，小怪给2经验
     const xpGain = (combatState.type === 'boss') ? 5 : 2;
     addLog(`全员获得 ${xpGain} 点经验值。`);
 
-    // 2. 分配 XP 并检查升级
     party.forEach(p => {
-        if (p.hp > 0) { // 只有活人才拿经验
-            gainXp(p, xpGain);
-        }
+        if (p.hp > 0) gainXp(p, xpGain);
     });
 
-    // 3. 掉落逻辑 (保持不变)
     const lootRoll = d6();
     if (lootRoll >= 5) gainLoot('item'); 
     else if (lootRoll >= 3) gainLoot('gold'); 
     else addLog("并没有发现什么有价值的东西。");
+
+    // --- 新增：BOSS 战胜利后的回城逻辑 ---
+    if (combatState.type === 'boss') {
+        addLog("🎉 恭喜！你击败了地牢的领主！城镇的灯火在远处召唤...");
+        const btn = document.createElement('button');
+        btn.innerHTML = "🏠 <b>凯旋回城 (结算)</b>";
+        btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
+        btn.onclick = () => window.enterTown();
+        
+        // 延时插入，确保 UI 渲染完毕
+        setTimeout(() => {
+            const controls = document.getElementById('controls');
+            if(controls) controls.prepend(btn);
+        }, 100);
+    }
     
   } else {
     addLog(`💀 队伍全灭...`);
@@ -194,61 +201,38 @@ function endCombat(win) {
   updateUI();
 }
 
-// --- 新增：处理经验获取与升级 ---
 function gainXp(char, amount) {
     char.xp += amount;
-    
-    // 检查是否升级
     if (char.xp >= char.maxXp) {
         levelUp(char);
     }
 }
 
 function levelUp(char) {
-    // 消耗经验 (或者保留溢出经验，这里简单处理：扣除当前上限)
     char.xp -= char.maxXp;
     char.lvl++;
-    
-    // 下一级所需经验增加 (比如每次 +5)
     char.maxXp += 5;
-
-    // 获取职业成长数据
     const growth = CLASS_GROWTH[char.class] || { hp:1, mp:1, att:0, desc:"通用成长" };
-
-    // 提升属性
     char.maxHp += growth.hp;
     char.maxMp += growth.mp;
     char.att += growth.att;
-
-    // 升级福利：状态全满
     char.hp = char.maxHp;
     char.mp = char.maxMp;
-
-    // 播放日志特效
     const upIcon = "🆙";
     addLog(`${upIcon} <b>${char.name} 升到了 Lv.${char.lvl}！</b>`);
     addLog(`<span style="color:#ffd700; margin-left:20px">${growth.desc} (HP/MP全回复)</span>`);
-    
-    // 递归检查（防止一次获得巨量经验连升两级的情况）
-    if (char.xp >= char.maxXp) {
-        levelUp(char);
-    }
+    if (char.xp >= char.maxXp) levelUp(char);
 }
 
 function tryFlee() {
   addLog("你示意队伍撤退...");
-  
   rollDiceAnim([{ label: "逃跑判定", id: "flee" }], (results) => {
       const roll = results["flee"];
       const rollIcon = logDieIcon(roll);
-      
       if (roll >= 4) {
         addLog(`逃跑成功！(${rollIcon})`);
         const target = randomAliveCharacter();
-        if (target) { 
-            target.hp -= 1; 
-            addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); 
-        }
+        if (target) { target.hp -= 1; addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); }
         gameState = 'EXPLORING'; 
         updateUI();
       } else {
@@ -261,6 +245,7 @@ function tryFlee() {
   });
 }
 
+// --- 补回了丢失的 resolveEncounter 函数 ---
 function resolveEncounter(room){
   const enc = room.encounter;
   if (enc.main === 'none') { room._encounterResolved = true; return; }
@@ -275,7 +260,12 @@ function resolveEncounter(room){
   } else if (enc.main === 'event') {
     if (enc.subtype === '陷阱') {
         const p = randomAliveCharacter();
-        if(p) { p.hp--; addLog(`咔嚓！触发了${enc.subtype}，${p.name} 受伤了。`); }
+        if(p) { 
+            // 陷阱伤害随难度微调，但保持至少1点
+            const dmg = 1; 
+            p.hp -= dmg; 
+            addLog(`咔嚓！触发了${enc.subtype}，${p.name} 受伤了 (-${dmg} HP)。`); 
+        }
     } else {
         addLog(`你发现了 ${enc.subtype}，但似乎无事发生。`);
     }
@@ -286,20 +276,16 @@ function resolveEncounter(room){
   }
 }
 
-// 主动搜寻逻辑
 window.performSearch = function() {
     if (gameState !== 'EXPLORING') return;
     const room = dungeon[playerRoomId];
     if (room.searched) { addLog("你已经翻遍了这里的每一块砖。"); return; }
     room.searched = true;
-
     const requests = [{ label: "搜寻判定", id: "search" }];
-
     rollDiceAnim(requests, (results) => {
         const roll = results["search"];
         const rollIcon = logDieIcon(roll);
         addLog(`队伍开始搜寻... (判定: ${rollIcon})`);
-        
         if (roll === 1) {
             addLog("⚠️ 糟糕！触发了隐蔽的机关！全员受到 1 点伤害！");
             party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - 1); });
@@ -308,7 +294,6 @@ window.performSearch = function() {
         else if (roll === 6) { addLog("✨ 运气不错！你在角落里发现了一个暗格。"); gainLoot('item'); } 
         else if (roll >= 4) { addLog("你在废墟下找到了一些零散的金币。"); gainLoot('gold'); } 
         else { addLog("除了一些灰尘和碎骨头，什么也没找到。"); }
-        
         updateUI();
     });
 }

@@ -2,15 +2,13 @@
 const canvas = document.getElementById('map');
 const ctx = canvas.getContext('2d');
 
-// 纸笔风格配色与配置
 const PAPER_BG = '#ffffff';
-const GRID_COLOR = '#e0e0e0'; // 浅灰网格
-const INK_COLOR = '#222';     // 深黑墨水
-const PENCIL_COLOR = '#666';  // 铅笔色
-const HIGHLIGHT_COLOR = '#b71c1c'; // 红笔标注
-window.TILE_SIZE = 20; // 格子稍微大一点
+const GRID_COLOR = '#e0e0e0'; 
+const INK_COLOR = '#222';    
+const PENCIL_COLOR = '#666'; 
+const HIGHLIGHT_COLOR = '#b71c1c'; 
+window.TILE_SIZE = 20; 
 
-// 主 UI 更新入口
 function updateUI() {
   if (gameState === 'CREATION') {
       ctx.fillStyle = '#f4f1ea'; 
@@ -20,7 +18,7 @@ function updateUI() {
       ctx.fillStyle = INK_COLOR;
       ctx.font = '30px "Special Elite", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText("d6 dungeon adventure", canvas.width/2, canvas.height/2 - 60);
+      ctx.fillText("D6 Dungeon Adventure", canvas.width/2, canvas.height/2 - 60);
       
       ctx.font = '16px "Patrick Hand", cursive';
       ctx.fillStyle = PENCIL_COLOR;
@@ -31,6 +29,17 @@ function updateUI() {
       renderInventory();
       return;
   }
+  // --- 新增：城镇界面 ---
+  if (gameState === 'TOWN') {
+       ctx.fillStyle = '#fff3e0'; // 暖色调
+       ctx.fillRect(0,0,canvas.width,canvas.height);
+       
+       renderParty();
+       renderTownShop(); // 新增函数
+       renderInventory();
+       return;
+   }
+   // -------------------
 
   drawMap();
   renderParty();
@@ -41,7 +50,6 @@ function updateUI() {
   log.scrollTop = log.scrollHeight;
 }
 
-// --- 1. 地图渲染 (纸笔手绘风格) ---
 function drawMap(){
   const pRoom = dungeon[playerRoomId];
   if(!pRoom || pRoom.absX === undefined) return; 
@@ -49,12 +57,10 @@ function drawMap(){
   const offX = canvas.width/2 - pRoom.absX;
   const offY = canvas.height/2 - pRoom.absY;
 
-  // 背景：白纸 + 网格
   ctx.fillStyle = PAPER_BG;
   ctx.fillRect(0,0,canvas.width,canvas.height);
   drawGrid(ctx, canvas.width, canvas.height);
 
-  // 遍历绘制房间
   Object.keys(dungeon).forEach(k => {
     const r = dungeon[k];
     const cx = r.absX + offX;
@@ -66,21 +72,17 @@ function drawMap(){
     const h = (r.shape.h || 3) * window.TILE_SIZE;
     const shapeType = r.shape.shape || 'rect';
 
-    // 房间内部填充白色（遮挡网格），描边用墨水色
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = INK_COLOR;
     ctx.lineWidth = 2.5;
 
-    // 当前房间用红笔圈出
     if (k === playerRoomId) {
         ctx.strokeStyle = HIGHLIGHT_COLOR;
         ctx.lineWidth = 3;
     }
 
-    // 连接通道不画边框，只擦除网格 (可选)
-    // 这里为了视觉清晰，依然画出轮廓，但在逻辑上它们是连通的
     if (r.isConnector) {
-        ctx.lineWidth = 1; // 走廊线条细一点
+        ctx.lineWidth = 1; 
     }
 
     ctx.beginPath();
@@ -88,12 +90,10 @@ function drawMap(){
     ctx.fill();
     ctx.stroke();
 
-    // 绘制门 (非走廊)
     if (r.shape.type !== 'corridor') {
         drawDoors(ctx, r, cx, cy, w, h);
     }
 
-    // 绘制图标 (Emoji 或 字符)
     if (r.encounter && r.encounter.main !== 'none'){
       ctx.fillStyle = INK_COLOR; 
       ctx.font = '20px "Segoe UI Emoji", serif';
@@ -108,7 +108,6 @@ function drawMap(){
   });
 }
 
-// 辅助：画网格
 function drawGrid(ctx, w, h) {
     ctx.strokeStyle = GRID_COLOR;
     ctx.lineWidth = 1;
@@ -118,7 +117,6 @@ function drawGrid(ctx, w, h) {
     ctx.stroke();
 }
 
-// 辅助：定义房间形状路径
 function drawRoomShapePath(ctx, cx, cy, w, h, type) {
     if (type === 'rect' || type === 'corridor') {
         ctx.rect(cx - w/2, cy - h/2, w, h);
@@ -156,7 +154,6 @@ function drawRoomShapePath(ctx, cx, cy, w, h, type) {
     }
 }
 
-// 辅助：画门 (手绘符号)
 function drawDoors(ctx, room, cx, cy, w, h) {
     ['up','right','down','left'].forEach(dir => {
       const door = room.doors[dir];
@@ -168,23 +165,19 @@ function drawDoors(ctx, room, cx, cy, w, h) {
       if(dir=='left') dx -= w/2; 
       if(dir=='right') dx += w/2;
 
-      // 先用白色擦除网格
       ctx.fillStyle = '#fff';
       ctx.fillRect(dx-dw/2, dy-dh/2, dw, dh);
 
       if (door.leadsTo) {
-          // 通路：画个空心框
           ctx.strokeStyle = INK_COLOR;
           ctx.lineWidth = 1.5;
           ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh);
       } else if (door.blocked) {
-          // 堵死：画红叉
           ctx.fillStyle = HIGHLIGHT_COLOR;
           ctx.font = 'bold 12px sans-serif';
           ctx.textAlign = 'center'; ctx.textBaseline='middle';
           ctx.fillText('X', dx, dy);
       } else if (door.closed) {
-          // 未探索：虚线框
           ctx.strokeStyle = PENCIL_COLOR;
           ctx.setLineDash([3, 3]);
           ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh);
@@ -193,7 +186,6 @@ function drawDoors(ctx, room, cx, cy, w, h) {
     });
 }
 
-// --- 2. 队伍状态渲染 (字符画风格进度条) ---
 function renderParty(){
   const list = document.getElementById('characters'); 
   list.innerHTML='';
@@ -206,11 +198,9 @@ function renderParty(){
     
     const maxHp = p.maxHp || p.hp || 1; 
     const maxMp = p.maxMp || p.mp || 1;
-    // 容错处理：确保 maxXp 存在 (针对旧存档兼容)
     if (!p.maxXp) p.maxXp = p.lvl * 5 + 5; 
     if (p.xp === undefined) p.xp = 0;
 
-    // ASCII 进度条
     const hpBars = Math.ceil(p.hp / 2); 
     const hpStr = '▮'.repeat(Math.max(0, hpBars)).padEnd(Math.ceil(maxHp/2), '▯');
     
@@ -218,9 +208,12 @@ function renderParty(){
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
     const descText = p.raceName ? `${p.raceName} ${p.className}` : p.class;
-
-    // 计算 XP 百分比用于绘制简单的 CSS 条
     const xpPct = (p.xp / p.maxXp) * 100;
+
+    // --- 新增：显示装备 ---
+    const w = p.equipment?.weapon ? `🗡️${p.equipment.weapon.name}` : '👊空手';
+    const a = p.equipment?.armor ? `🛡️${p.equipment.armor.name}` : '👕布衣';
+    // -------------------
 
     li.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
@@ -229,6 +222,7 @@ function renderParty(){
              <span style="font-size:0.8em; font-weight:normal; color:#555">(${descText})</span>
           </div>
       </div>
+      <div style="font-size:0.85em; color:#555; margin:2px 0;">${w} | ${a}</div>
       
       <div style="font-family:monospace; margin-top:4px; color:#b71c1c; font-size:1.1em; line-height:1.2">
         HP: ${hpStr} <span style="color:#000; font-size:0.7em">(${p.hp}/${maxHp})</span>
@@ -253,7 +247,6 @@ function renderParty(){
   });
 }
 
-// --- 3. 角色创建界面 (读取 data.js) ---
 function renderCreation() {
     const container = document.getElementById('controls');
     container.innerHTML = '';
@@ -264,6 +257,13 @@ function renderCreation() {
     header.style.fontFamily = '"Special Elite", monospace';
     header.textContent = `角色卡填写 (${party.length}/4)`;
     container.appendChild(header);
+
+    // 读档按钮 (防止满员不显示，前置)
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = "💾 读取旧的记忆";
+    loadBtn.style.cssText = "width:100%; padding:8px; background:#e8f5e9; color:#1b5e20; margin-bottom:15px; border:1px solid #2e7d32; cursor:pointer";
+    loadBtn.onclick = () => showSaveLoadMenu();
+    container.appendChild(loadBtn);
 
     if (party.length >= 4) {
         const startBtn = document.createElement('button');
@@ -279,12 +279,6 @@ function renderCreation() {
         container.appendChild(resetBtn);
         return;
     }
-    
-    const loadBtn = document.createElement('button');
-    loadBtn.textContent = "💾 读取旧的记忆";
-    loadBtn.style.cssText = "width:100%; padding:8px; background:#efefef; color:#333; margin-top:10px; border:1px solid #999; cursor:pointer";
-    loadBtn.onclick = () => showSaveLoadMenu();
-    container.appendChild(loadBtn);
 
     const form = document.createElement('div');
     form.style.background = "#fff";
@@ -292,7 +286,6 @@ function renderCreation() {
     form.style.border = "2px solid #222";
     form.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.1)";
     
-    // 1. 姓名输入 (新增)
     const nameLabel = document.createElement('div');
     nameLabel.innerHTML = "<b>1. 姓名 (可选):</b>";
     form.appendChild(nameLabel);
@@ -300,11 +293,9 @@ function renderCreation() {
     const nameInput = document.createElement('input');
     nameInput.type = 'text';
     nameInput.placeholder = '请输入英雄大名...';
-    // 纸笔风格输入框
     nameInput.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:'Patrick Hand', cursive; font-size:1.1em; color:#000; box-sizing: border-box;";
     form.appendChild(nameInput);
 
-    // 2. 种族选择
     const raceLabel = document.createElement('div');
     raceLabel.innerHTML = "<b>2. 种族:</b>";
     form.appendChild(raceLabel);
@@ -320,7 +311,6 @@ function renderCreation() {
     });
     form.appendChild(raceSelect);
 
-    // 3. 职业选择
     const classLabel = document.createElement('div');
     classLabel.innerHTML = "<b>3. 职业:</b>";
     form.appendChild(classLabel);
@@ -343,19 +333,66 @@ function renderCreation() {
         const nameVal = nameInput.value;
         const rKey = raceSelect.value;
         const cKey = classSelect.value;
-        if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); // 传入名字
+        if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); 
     };
     form.appendChild(addBtn);
 
     container.appendChild(form);
 }
 
-// --- 4. 游戏控制面板 (行动点逻辑) ---
+// --- 新增：商店界面渲染 ---
+function renderTownShop() {
+    const container = document.getElementById('controls');
+    container.innerHTML = '<h3>🏰 休憩城镇</h3>';
+    
+    const nextBtn = document.createElement('button');
+    nextBtn.innerHTML = `🔥 <b>挑战下一周目 (Lv.${window.worldLevel + 1})</b>`;
+    nextBtn.style.cssText = "width:100%; padding:15px; background:#d84315; color:white; margin-bottom:20px; font-weight:bold; cursor:pointer";
+    nextBtn.onclick = () => window.startNextRun();
+    container.appendChild(nextBtn);
+    
+    const shopDiv = document.createElement('div');
+    shopDiv.style.cssText = "background:#fff; padding:10px; border:2px solid #555;";
+    shopDiv.innerHTML = "<h4>🛒 杂货铺 (每日上新)</h4>";
+    
+    window.shopStock.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #ccc; padding:4px 0";
+        
+        let desc = item.type === 'weapon' ? `攻+${item.att}` : (item.type==='armor'?`HP+${item.hpMax}`:item.desc);
+        row.innerHTML = `<span><b>${item.name}</b> <small style='color:#666'>${desc}</small></span>`;
+        
+        const buyBtn = document.createElement('button');
+        buyBtn.textContent = `${item.cost} G`;
+        buyBtn.style.fontSize = "0.9em";
+        buyBtn.onclick = () => window.buyItem(idx);
+        if (inventory.gold < item.cost) {
+            buyBtn.disabled = true;
+            buyBtn.style.opacity = 0.6;
+        }
+        
+        row.appendChild(buyBtn);
+        shopDiv.appendChild(row);
+    });
+    container.appendChild(shopDiv);
+    
+    // 底部系统按钮
+    const hr = document.createElement('hr');
+    hr.style.cssText = "margin: 15px 0; border: 0; border-top: 1px dashed #ccc;";
+    container.appendChild(hr);
+
+    const systemBtn = document.createElement('button');
+    systemBtn.innerHTML = "💾 系统 / 存读档";
+    systemBtn.style.width = "100%";
+    systemBtn.style.fontSize = "0.9em";
+    systemBtn.onclick = () => showSaveLoadMenu();
+    container.appendChild(systemBtn);
+}
+
 function renderControls(){
   const container = document.getElementById('controls');
   container.innerHTML = ''; 
 
-  // --- 探索模式 ---
   if (gameState === 'EXPLORING') {
     const searchBtn = document.createElement('button');
     searchBtn.textContent = '🔍 搜寻当前房间';
@@ -410,15 +447,13 @@ function renderControls(){
         doorsDiv.appendChild(dBtn);
     });
     container.appendChild(doorsDiv);
+
   } 
-  // --- 战斗模式 ---
   else if (gameState === 'COMBAT') {
     const combatPanel = document.createElement('div');
     
-    // 计算剩余行动人数
     const remainingActs = party.filter((p, idx) => p.hp > 0 && !combatState.actedIndices.includes(idx)).length;
     
-    // 回合结束按钮
     const atkBtn = document.createElement('button');
     atkBtn.style.width = '100%';
     atkBtn.style.fontWeight = 'bold';
@@ -436,7 +471,6 @@ function renderControls(){
     atkBtn.onclick = fightRound;
     combatPanel.appendChild(atkBtn);
 
-    // 技能标题
     const skillHeader = document.createElement('div');
     skillHeader.textContent = "战术技能 (替代普攻)";
     skillHeader.style.cssText = "color:#666; font-size:12px; margin: 10px 0 5px; text-align:center; font-family:monospace";
@@ -480,7 +514,6 @@ function renderControls(){
 
     container.appendChild(combatPanel);
   } 
-  // --- 游戏结束 ---
   else if (gameState === 'GAMEOVER') {
     const rBtn = document.createElement('button');
     rBtn.textContent = "💀 重新开始";
@@ -501,7 +534,6 @@ function renderControls(){
     container.appendChild(systemBtn);
 }
 
-// --- 5. 背包渲染 (Use -> ShowTarget) ---
 function renderInventory() {
   document.getElementById('goldDisplay').textContent = `${inventory.gold} G`;
   const list = document.getElementById('itemList');
@@ -517,7 +549,7 @@ function renderInventory() {
     li.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dotted #ccc; padding:6px 0";
     
     const infoSpan = document.createElement('div');
-    infoSpan.innerHTML = `<b>${item.name}</b> <small style="color:#666">${item.desc}</small>`;
+    infoSpan.innerHTML = `<b>${item.name}</b> <small style="color:#666">${item.desc || (item.att?'攻+'+item.att:'HP+'+item.hpMax)}</small>`;
     
     const btn = document.createElement('button');
     btn.className = 'useBtn';
@@ -527,7 +559,14 @@ function renderInventory() {
     if (item.type === 'treasure') {
         btn.textContent = '卖出';
         btn.onclick = () => window.sellItem(index);
-    } else {
+    } 
+    // --- 新增：装备逻辑 ---
+    else if (item.type === 'weapon' || item.type === 'armor') {
+        btn.textContent = '装备';
+        btn.onclick = () => showTargetSelection(index);
+    }
+    // -------------------
+    else {
         // 消耗品/卷轴
         if (item.type === 'combat' && gameState !== 'COMBAT') {
             btn.textContent = '战斗用';
@@ -543,21 +582,19 @@ function renderInventory() {
   });
 }
 
-// --- 6. 物品目标选择弹窗 ---
 function showTargetSelection(itemIndex) {
     const item = inventory.items[itemIndex];
-    const overlay = document.getElementById('diceOverlay'); // 复用遮罩层
+    const overlay = document.getElementById('diceOverlay'); 
     const container = document.getElementById('diceContainer');
     
     overlay.classList.add('active');
     container.innerHTML = ''; 
 
     const title = document.createElement('div');
-    title.innerHTML = `谁来使用 <span style="color:${HIGHLIGHT_COLOR}">${item.name}</span> ?<br><span style="font-size:14px; font-weight:normal">战斗中使用将消耗行动回合</span>`;
+    title.innerHTML = `谁来使用/装备 <span style="color:${HIGHLIGHT_COLOR}">${item.name}</span> ?`;
     title.style.cssText = "width:100%; text-align:center; margin-bottom:20px; font-weight:bold; font-size:18px; font-family:'Special Elite', monospace";
     container.appendChild(title);
 
-    // 角色列表
     party.forEach((p, idx) => {
         const btn = document.createElement('button');
         btn.style.cssText = "display:block; width:220px; margin:10px auto; padding:10px; background:#fff; color:#000; border:2px solid #000; text-align:left";
@@ -568,7 +605,8 @@ function showTargetSelection(itemIndex) {
         if (p.hp <= 0) {
             status = " (已阵亡)";
             disabled = true;
-        } else if (gameState === 'COMBAT' && combatState.actedIndices.includes(idx)) {
+        } else if (gameState === 'COMBAT' && combatState.actedIndices.includes(idx) && item.type !== 'weapon' && item.type !== 'armor') {
+            // 战斗中如果是换装备，暂不允许消耗回合，或者你希望换装也消耗回合，这里可以调整
             status = " (已行动)";
             disabled = true;
         }
@@ -596,7 +634,6 @@ function showTargetSelection(itemIndex) {
     container.appendChild(cancelBtn);
 }
 
-// --- 7. 骰子动画 ---
 function rollDiceAnim(diceRequests, callback) {
     const overlay = document.getElementById('diceOverlay');
     const container = document.getElementById('diceContainer');
@@ -655,9 +692,8 @@ function showSaveLoadMenu() {
     const container = document.getElementById('diceContainer');
     
     overlay.classList.add('active');
-    container.innerHTML = ''; // 清空原有内容
+    container.innerHTML = ''; 
 
-    // 标题
     const title = document.createElement('h2');
     title.textContent = "💾 灵魂记录 (存/读档)";
     title.style.width = "100%";
@@ -665,7 +701,6 @@ function showSaveLoadMenu() {
     title.style.fontFamily = '"Special Elite", monospace';
     container.appendChild(title);
 
-    // --- 导出区域 ---
     const exportBox = document.createElement('div');
     exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px dashed #555; background: #fff;";
     
@@ -677,7 +712,6 @@ function showSaveLoadMenu() {
         if(code) {
             codeArea.value = code;
             codeArea.select();
-            // 尝试自动复制
             navigator.clipboard.writeText(code).then(() => {
                 alert("存档代码已自动复制到剪贴板！");
             }).catch(() => {
@@ -694,7 +728,6 @@ function showSaveLoadMenu() {
     
     container.appendChild(exportBox);
 
-    // --- 导入区域 ---
     const importBox = document.createElement('div');
     importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px solid #2e7d32; background: #e8f5e9;";
 
@@ -720,7 +753,6 @@ function showSaveLoadMenu() {
 
     container.appendChild(importBox);
 
-    // 关闭按钮
     const closeBtn = document.createElement('button');
     closeBtn.textContent = "关闭";
     closeBtn.onclick = () => overlay.classList.remove('active');

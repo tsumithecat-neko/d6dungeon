@@ -6,7 +6,7 @@
 // cx, cy: 中心点绝对坐标; wTiles, hTiles: 宽高的格数
 function getRoomBounds(cx, cy, wTiles, hTiles) {
   // 引用 window.TILE_SIZE (需要在 ui.js 中定义并挂载到 window，或此处硬编码 18)
-  const tileSize = window.TILE_SIZE || 18; 
+  const tileSize = window.TILE_SIZE || 20; 
   const wPixels = wTiles * tileSize;
   const hPixels = hTiles * tileSize;
   
@@ -145,7 +145,7 @@ function openDoor(dir){
 // 核心算法：尝试放置房间，处理碰撞和走廊延伸
 function openDoorFrom(roomId, dir){
   const prevRoom = dungeon[roomId];
-  const tileSize = window.TILE_SIZE || 18;
+  const tileSize = window.TILE_SIZE || 20;
   
   // 定义方向向量和对应的走廊类型
   const dirConfig = {
@@ -271,29 +271,4 @@ function linkRooms(id1, id2, dirFrom1){
   }
 }
 
-// resolveEncounter 保持不变，包含在原代码中，这里为了完整性不再重复列出，
-// 如果你需要它，请告诉我，通常它不需要修改。
-function resolveEncounter(room){
-  const enc = room.encounter;
-  if (enc.main === 'none') { room._encounterResolved = true; return; }
-
-  addLog(`>>> 遭遇：${enc.main} ${enc.subtype||''} <<<`);
-
-  if (enc.main === 'monster') initCombat(enc.template, 'group');
-  else if (enc.main === 'boss') initCombat(enc.template, 'boss');
-  else if (enc.main === 'treasure') {
-    if (enc.subtype.includes('金币')) gainLoot('gold'); else gainLoot('item');
-    room._encounterResolved = true;
-  } else if (enc.main === 'event') {
-    if (enc.subtype === '陷阱') {
-        const p = randomAliveCharacter();
-        if(p) { p.hp--; addLog(`触发陷阱！${p.name} 受了伤。`); }
-    } else {
-        addLog(`遇到 ${enc.subtype}。`);
-    }
-    room._encounterResolved = true;
-  } else {
-    addLog("这里什么也没有。");
-    room._encounterResolved = true;
-  }
-}
+// 注意：resolveEncounter 函数已移除，现位于 combat.js 中

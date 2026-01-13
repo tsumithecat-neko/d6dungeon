@@ -39,7 +39,6 @@ const CLASS_BASE_STATS = {
     rogue:   { name: "盗贼", hp: 7,  mp: 4, att: 1, desc: "技巧型，擅长暴击和闪避" },
     wizard:  { name: "法师", hp: 4,  mp: 6, att: 0, desc: "脆皮高爆发，依赖魔法" },
     cleric:  { name: "牧师", hp: 6,  mp: 5, att: 0, desc: "辅助治疗，团队核心" },
-    // 新增
     paladin: { name: "圣骑士", hp: 9, mp: 3, att: 1, desc: "神圣战士，能自我治疗的坦克" },
     ranger:  { name: "游侠",   hp: 8, mp: 4, att: 1, desc: "远程射手，多段攻击" }
 };
@@ -50,7 +49,6 @@ const RACES = {
     dwarf:    { name: "矮人", hp: 3, mp: -1, att: 0, desc: "坚韧顽强 (HP+3, MP-1)" },
     elf:      { name: "精灵", hp: -1, mp: 2, att: 0, desc: "魔法亲和 (MP+2, HP-1)" },
     orc:      { name: "兽人", hp: 2, mp: -2, att: 1, desc: "野蛮力量 (HP+2, 攻+1, MP-2)" },
-    // 新增
     halfling: { name: "半身人", hp: -1, mp: 3, att: 0, desc: "幸运机敏 (MP+3, HP-1)" },
     tiefling: { name: "提夫林", hp: 0, mp: 1, att: 1, desc: "炼狱血统 (攻+1, MP+1)" }
 };
@@ -113,19 +111,16 @@ const CLASS_SKILLS = {
             return `${user.name} 祈祷神恩，${target.name} 的伤口愈合了 (+${healAmt} HP)。`;
         }
     },
-    // 新增技能
     paladin: {
         name: "圣佑打击",
         cost: 2,
         desc: "消耗2信仰，造成2点伤害，并为自己恢复2点HP（攻守兼备）。",
         effect: (user, battleState) => {
-            // 伤害逻辑
             if (battleState.type === 'group') {
                 battleState.enemy.count = Math.max(0, battleState.enemy.count - 2);
             } else {
                 battleState.enemy.hp -= 2;
             }
-            // 回血逻辑
             const heal = 2;
             const oldHp = user.hp;
             user.hp = Math.min(user.maxHp, user.hp + heal);
@@ -151,9 +146,9 @@ const CLASS_SKILLS = {
 
 // --- 新增：职业升级成长表 ---
 const CLASS_GROWTH = {
-    warrior: { hp: 2, mp: 0, att: 1, desc: "体格强化 (HP+2, 攻+1)" }, // 战士越战越勇
-    rogue:   { hp: 1, mp: 1, att: 1, desc: "技巧磨练 (HP+1, MP+1, 攻+1)" }, // 均衡
-    wizard:  { hp: 1, mp: 2, att: 0, desc: "魔力源泉 (MP+2, HP+1)" }, // 法师堆蓝
+    warrior: { hp: 2, mp: 0, att: 1, desc: "体格强化 (HP+2, 攻+1)" },
+    rogue:   { hp: 1, mp: 1, att: 1, desc: "技巧磨练 (HP+1, MP+1, 攻+1)" },
+    wizard:  { hp: 1, mp: 2, att: 0, desc: "魔力源泉 (MP+2, HP+1)" },
     cleric:  { hp: 1, mp: 2, att: 0, desc: "信仰加深 (MP+2, HP+1)" }, 
     paladin: { hp: 2, mp: 1, att: 0, desc: "圣光护体 (HP+2, MP+1)" }, 
     ranger:  { hp: 1, mp: 1, att: 1, desc: "狩猎本能 (HP+1, MP+1, 攻+1)" }
@@ -166,7 +161,7 @@ const MONSTER_POOLS = {
   boss: [ { name: "双头食人魔", hp: 8, att: 2 }, { name: "混沌死灵法师", hp: 6, att: 3 }, { name: "石化美杜莎", hp: 6, att: 3 }, { name: "深渊恶魔", hp: 10, att: 2 } ]
 };
 
-// 物品定义
+// 物品定义 (消耗品/宝物)
 const ITEM_TYPES = {
   potion: { name: "治疗药水", type: "consumable", desc: "恢复4点HP", effect: (target) => { 
       target.hp = Math.min(target.hp + 4, target.maxHp); 
@@ -176,7 +171,7 @@ const ITEM_TYPES = {
   scroll: { name: "闪电卷轴", type: "combat", desc: "对所有敌人造成1点伤害", effect: () => {
       if(gameState !== 'COMBAT' || !combatState.active) { addLog("只能在战斗中使用！"); return false; }
       if(combatState.type === 'group') {
-          combatState.enemy.count = 0; // 闪电清场，稍微强力一点
+          combatState.enemy.count = 0; 
           addLog("闪电链在敌群中跳跃，瞬间清除了所有小怪！");
       } else {
           combatState.enemy.hp -= 2;
@@ -186,4 +181,19 @@ const ITEM_TYPES = {
       return true;
   }},
   gem: { name: "红宝石", type: "treasure", desc: "价值 10 金币", value: 10 }
+};
+
+// --- 4. 装备数据 (新增) ---
+const GEAR_DATA = {
+    weapons: [
+        { name: "生锈短剑", type: "weapon", att: 1, cost: 20, level: 1 },
+        { name: "铁制长剑", type: "weapon", att: 2, cost: 50, level: 2 },
+        { name: "精钢战斧", type: "weapon", att: 3, cost: 120, level: 3 },
+        { name: "屠龙巨剑", type: "weapon", att: 5, cost: 300, level: 5 }
+    ],
+    armors: [
+        { name: "破旧皮甲", type: "armor", def: 0, hpMax: 2, cost: 20, level: 1 }, // 增加HP上限
+        { name: "锁子甲",   type: "armor", def: 1, hpMax: 0, cost: 60, level: 2 }, // 减伤 (暂未实装减伤，这里主要演示HP加成或只是描述)
+        { name: "秘银板甲", type: "armor", def: 2, hpMax: 5, cost: 200, level: 4 }
+    ]
 };
