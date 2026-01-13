@@ -20,7 +20,7 @@ function updateUI() {
       ctx.fillStyle = INK_COLOR;
       ctx.font = '30px "Special Elite", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText("Four Against Darkness", canvas.width/2, canvas.height/2 - 60);
+      ctx.fillText("d6 dungeon adventure", canvas.width/2, canvas.height/2 - 60);
       
       ctx.font = '16px "Patrick Hand", cursive';
       ctx.fillStyle = PENCIL_COLOR;
