@@ -85,7 +85,7 @@ window.enterTown = function() {
     updateUI();
 };
 
-// --- 新增：开启新一轮冒险 (难度提升) ---
+// --- 修改：开启新一轮冒险 (难度提升) ---
 window.startNextRun = function() {
     window.worldLevel++; // 难度 +1
     
@@ -99,12 +99,17 @@ window.startNextRun = function() {
     dungeon['start_room'] = startRoom;
     playerRoomId = 'start_room';
     
-    // 状态全满 + 复活
+    // --- 修改点：不再免费全回复 ---
     party.forEach(p => {
-        if(p.hp <= 0) p.hp = 1; // 仅复活为1血，需要喝药
-        p.hp = p.maxHp; 
-        p.mp = p.maxMp;
+        // 仅复活已阵亡的角色，给 1 点血（勉强能动，必须喝药）
+        if(p.hp <= 0) {
+            p.hp = 1; 
+            addLog(`${p.name} 勉强苏醒了过来 (1 HP)。`);
+        }
+        // 注意：这里删除了 p.hp = p.maxHp 和 p.mp = p.maxMp
+        // 玩家将带着上一周目的残血状态开始，增加了资源管理的难度
     });
+    // ----------------------------
 
     gameState = 'EXPLORING';
     addLog(`⚔️ 再次踏入黑暗... 敌人变得更强了 (Lv.${window.worldLevel})！`);

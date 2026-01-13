@@ -4,11 +4,15 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
-  // --- 难度系数 scaling ---
-  const multiplier = 1 + (window.worldLevel - 1) * 0.3; 
+  // --- 修改点：难度系数 Scaling 增强 ---
+  // 血量成长倍率从 30% 提升到 50%
+  const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
   enemyData.hp = Math.floor(enemyData.hp * multiplier);
-  enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) / 2);
-  // ---------------------------
+  
+  // 攻击力成长：修改为每升 1 级，敌人攻击力 +0.8 (向下取整)
+  // 相比原来的 (level-1)/2，攻击力增长更陡峭
+  enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
+  // ------------------------------------
   
   if (type === 'group') {
     if (!enemyData.count) enemyData.count = 1;
@@ -118,14 +122,10 @@ function fightRound() {
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
 
-      // --- 关键修改确认：胜利检查 ---
-      // 如果 checkWin() 返回 true，说明敌人全灭，
-      // 函数直接 return，不再执行下方的“计算剩余行动”逻辑。
-      // 这就实现了“如果敌人已被击败，直接跳过额外行动阶段”。
+      // --- 胜利检查 ---
       if (checkWin()) return; 
 
       // --- 额外行动阶段 ---
-      // 只有战斗还在继续时，才会检查是否有人因为骰出6而剩下行动点
       const remainingActs = party.filter((p, i) => p.hp > 0 && !combatState.actedIndices.includes(i)).length;
 
       if (remainingActs === 0) {
@@ -216,14 +216,26 @@ function levelUp(char) {
     char.lvl++;
     char.maxXp += 5;
     const growth = CLASS_GROWTH[char.class] || { hp:1, mp:1, att:0, desc:"通用成长" };
+    
     char.maxHp += growth.hp;
     char.maxMp += growth.mp;
     char.att += growth.att;
-    char.hp = char.maxHp;
-    char.mp = char.maxMp;
+    
+    // --- 修改点：升级不再全回复 ---
+    // 仅回复“成长值 + 少量固定值”，不再直接设为 maxHp
+    const hpHeal = growth.hp + 2;
+    const mpHeal = growth.mp + 2;
+
+    char.hp = Math.min(char.maxHp, char.hp + hpHeal);
+    char.mp = Math.min(char.maxMp, char.mp + mpHeal);
+    // ----------------------------
+
     const upIcon = "🆙";
     addLog(`${upIcon} <b>${char.name} 升到了 Lv.${char.lvl}！</b>`);
-    addLog(`<span style="color:#ffd700; margin-left:20px">${growth.desc} (HP/MP全回复)</span>`);
+    
+    // 更新提示文本
+    addLog(`<span style="color:#ffd700; margin-left:20px">${growth.desc} (状态回复 +${hpHeal}/+${mpHeal})</span>`);
+    
     if (char.xp >= char.maxXp) levelUp(char);
 }
 
