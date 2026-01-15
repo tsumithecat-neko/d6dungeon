@@ -226,27 +226,123 @@ function renderCreation() {
     form.appendChild(addBtn); container.appendChild(form);
 }
 
+// --- 修改后的城镇渲染函数 ---
 function renderTownShop() {
-    const container = document.getElementById('controls'); container.innerHTML = '<h3>🏰 休憩城镇</h3>';
-    const nextBtn = document.createElement('button'); nextBtn.innerHTML = `🔥 <b>挑战下一周目 (Lv.${window.worldLevel + 1})</b>`;
-    nextBtn.style.cssText = "width:100%; padding:15px; background:#d84315; color:white; margin-bottom:20px; font-weight:bold; cursor:pointer";
-    nextBtn.onclick = () => window.startNextRun(); container.appendChild(nextBtn);
+    const container = document.getElementById('controls');
+    container.innerHTML = ''; 
     
-    const shopDiv = document.createElement('div'); shopDiv.style.cssText = "background:#fff; padding:10px; border:2px solid #555;"; shopDiv.innerHTML = "<h4>🛒 杂货铺</h4>";
+    // Header
+    const header = document.createElement('h3');
+    header.innerHTML = `🏰 <b>边境城镇 (Lv.${window.worldLevel})</b>`;
+    header.style.textAlign = 'center'; header.style.marginTop = '0';
+    container.appendChild(header);
+
+    // "Next Adventure" Button (Prominent)
+    const nextBtn = document.createElement('button');
+    nextBtn.innerHTML = `⚔️ <b>整装待发：挑战下一层</b>`;
+    nextBtn.style.cssText = "width:100%; padding:12px; background:#d84315; color:white; font-weight:bold; cursor:pointer; margin-bottom:15px; border:2px solid #bf360c;";
+    nextBtn.onclick = () => window.startNextRun();
+    container.appendChild(nextBtn);
+
+    // 1. Church Block
+    const churchDiv = document.createElement('div');
+    churchDiv.style.cssText = "background:#e3f2fd; border:1px solid #90caf9; padding:8px; margin-bottom:10px; border-radius:4px;";
+    churchDiv.innerHTML = `<h4 style="margin:0 0 5px 0; color:#1565c0;">⛪ 圣堂 (治疗与复活)</h4>`;
+    
+    // Heal All Button
+    const healCost = 20 + (window.worldLevel * 10);
+    const healBtn = document.createElement('button');
+    healBtn.innerHTML = `💖 全员治愈 (${healCost} G)`;
+    healBtn.style.cssText = "width:100%; margin-bottom:5px; background:#fff; border:1px solid #1565c0; color:#1565c0; cursor:pointer;";
+    healBtn.onclick = () => window.serviceHealParty();
+    churchDiv.appendChild(healBtn);
+
+    // Revive List
+    const deadMembers = party.filter(p => p.hp <= 0);
+    if (deadMembers.length > 0) {
+        deadMembers.forEach(p => {
+            const cost = p.lvl * 100;
+            const revBtn = document.createElement('button');
+            revBtn.innerHTML = `⚰️ 复活 <b>${p.name}</b> (${cost} G)`;
+            revBtn.style.cssText = "width:100%; margin-top:4px; background:#424242; color:#fff; border:1px solid #000; cursor:pointer;";
+            revBtn.onclick = () => window.serviceRevive(party.indexOf(p));
+            churchDiv.appendChild(revBtn);
+        });
+    } else {
+        const msg = document.createElement('div');
+        msg.textContent = "全员存活。女神保佑你们。";
+        msg.style.fontSize = "0.8em"; msg.style.color = "#555";
+        churchDiv.appendChild(msg);
+    }
+    container.appendChild(churchDiv);
+
+    // 2. Blacksmith Block
+    const smithDiv = document.createElement('div');
+    smithDiv.style.cssText = "background:#efebe9; border:1px solid #a1887f; padding:8px; margin-bottom:10px; border-radius:4px;";
+    smithDiv.innerHTML = `<h4 style="margin:0 0 5px 0; color:#5d4037;">⚒️ 铁匠铺 (装备强化)</h4>`;
+    
+    party.forEach((p, idx) => {
+        if (p.hp <= 0) return; // Dead cannot upgrade
+        const row = document.createElement('div');
+        row.style.marginBottom = "8px";
+        row.style.borderBottom = "1px dotted #ccc";
+        row.innerHTML = `<div style="font-weight:bold; font-size:0.9em">${p.name}</div>`;
+        
+        // Weapon
+        if (p.equipment.weapon) {
+            const w = p.equipment.weapon;
+            const cost = Math.floor(50 + (w.cost * 0.4));
+            const btn = document.createElement('button');
+            btn.innerHTML = `🗡️ 强化 ${w.name} <br><small>${cost} G (+1攻)</small>`;
+            btn.style.width = "100%"; btn.style.fontSize = "0.8em"; btn.style.marginBottom = "4px";
+            if (inventory.gold < cost) { btn.disabled = true; btn.style.opacity = 0.6; }
+            btn.onclick = () => window.serviceUpgradeItem(idx, 'weapon');
+            row.appendChild(btn);
+        }
+        // Armor
+        if (p.equipment.armor) {
+            const a = p.equipment.armor;
+            const cost = Math.floor(50 + (a.cost * 0.4));
+            const btn = document.createElement('button');
+            btn.innerHTML = `🛡️ 强化 ${a.name} <br><small>${cost} G (+1血)</small>`;
+            btn.style.width = "100%"; btn.style.fontSize = "0.8em";
+            if (inventory.gold < cost) { btn.disabled = true; btn.style.opacity = 0.6; }
+            btn.onclick = () => window.serviceUpgradeItem(idx, 'armor');
+            row.appendChild(btn);
+        }
+        smithDiv.appendChild(row);
+    });
+    container.appendChild(smithDiv);
+
+    // 3. Market Block (Shop)
+    const marketDiv = document.createElement('div');
+    marketDiv.style.cssText = "background:#fff; border:1px solid #ccc; padding:8px; border-radius:4px;";
+    marketDiv.innerHTML = `<h4 style="margin:0 0 5px 0;">🛒 杂货集市</h4>`;
+    
     window.shopStock.forEach((item, idx) => {
-        const row = document.createElement('div'); row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #ccc; padding:4px 0";
+        const row = document.createElement('div');
+        row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #eee; padding:4px 0";
+        
         let desc = item.type === 'weapon' ? `攻+${item.att}` : (item.type==='armor'?`HP+${item.hpMax}`:item.desc);
-        if(item.desc && item.desc.includes('[')) desc = item.desc; // 优先显示词缀描述
+        if(item.desc && item.desc.includes('[')) desc = item.desc; 
         
         let nameHtml = item.name;
         if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
+
+        row.innerHTML = `<div style="line-height:1.1"><div>${nameHtml}</div><div style="font-size:0.75em; color:#666">${desc}</div></div>`;
         
-        row.innerHTML = `<span>${nameHtml} <small style="font-size:0.8em; color:#555">${desc}</small></span>`;
-        const buyBtn = document.createElement('button'); buyBtn.textContent = `${item.cost} G`; buyBtn.style.fontSize = "0.9em"; buyBtn.onclick = () => window.buyItem(idx);
+        const buyBtn = document.createElement('button');
+        buyBtn.textContent = `${item.cost} G`;
+        buyBtn.style.minWidth = "50px";
+        buyBtn.onclick = () => window.buyItem(idx);
         if (inventory.gold < item.cost) { buyBtn.disabled = true; buyBtn.style.opacity = 0.6; }
-        row.appendChild(buyBtn); shopDiv.appendChild(row);
+        
+        row.appendChild(buyBtn);
+        marketDiv.appendChild(row);
     });
-    container.appendChild(shopDiv);
+    container.appendChild(marketDiv);
+
+    // Save System Footer
     const hr = document.createElement('hr'); hr.style.cssText = "margin: 15px 0; border: 0; border-top: 1px dashed #ccc;"; container.appendChild(hr);
     const systemBtn = document.createElement('button'); systemBtn.innerHTML = "💾 系统 / 存读档"; systemBtn.style.width = "100%"; systemBtn.fontSize = "0.9em";
     systemBtn.onclick = () => showSaveLoadMenu(); container.appendChild(systemBtn);
