@@ -1,5 +1,44 @@
 // inventory.js - 背包与商店管理
 
+// --- 新增：随机装备生成逻辑 ---
+function generateLoot(type, level) {
+    let pool = [];
+    if (type === 'weapon') pool = GEAR_DATA.weapons;
+    else pool = GEAR_DATA.armors;
+
+    // 1. 筛选合适的基底 (等级 <= level + 1)
+    const validBase = pool.filter(i => i.level <= level + 1);
+    const baseItem = validBase[Math.floor(Math.random() * validBase.length)] || pool[0];
+    
+    // 克隆基底
+    const item = JSON.parse(JSON.stringify(baseItem));
+    item.id = Date.now() + Math.random();
+
+    // 2. 随机词缀判定 (40% 几率出现词缀，Boss战或高级箱子可以更高，这里取通用)
+    if (Math.random() < 0.4) {
+        const affixPool = (type === 'weapon') ? WEAPON_AFFIXES : ARMOR_AFFIXES;
+        const affix = affixPool[Math.floor(Math.random() * affixPool.length)];
+        
+        // 应用词缀
+        item.name = `${affix.name} ${item.name}`;
+        item.affix = affix; // 保存词缀数据供战斗使用
+        item.color = affix.color || null; // 稀有度颜色
+        
+        // 合并基础属性
+        if (affix.att) item.att = (item.att || 0) + affix.att;
+        if (affix.hpMax) item.hpMax = (item.hpMax || 0) + affix.hpMax;
+        
+        // 价格翻倍
+        item.cost = Math.floor(item.cost * (affix.costMult || 1.5));
+        
+        // 更新描述
+        let extraDesc = affix.desc ? ` [${affix.desc}]` : "";
+        item.desc = (item.desc || "") + extraDesc;
+    }
+    
+    return item;
+}
+
 // 获得战利品
 function gainLoot(type) {
   if (type === 'gold') {
@@ -8,27 +47,39 @@ function gainLoot(type) {
     addLog(`你捡到了 ${amt} 枚金币。`);
   } else if (type === 'item') {
     const roll = d6();
-    let itemKey = 'potion';
-    if(roll >= 5) itemKey = 'scroll';
-    else if(roll === 1) itemKey = 'gem';
+    let newItem;
     
-    inventory.items.push({ ...ITEM_TYPES[itemKey], id: Date.now() + Math.random() });
-    addLog(`你获得了：${ITEM_TYPES[itemKey].name}`);
+    // 50% 几率出装备，50% 出消耗品
+    if (roll >= 4) {
+        // 出装备
+        const gearType = (Math.random() > 0.5) ? 'weapon' : 'armor';
+        newItem = generateLoot(gearType, window.worldLevel);
+    } else {
+        // 出消耗品
+        let itemKey = 'potion';
+        if(roll === 3) itemKey = 'scroll';
+        else if(roll === 1) itemKey = 'gem';
+        newItem = { ...ITEM_TYPES[itemKey], id: Date.now() + Math.random() };
+    }
+    
+    inventory.items.push(newItem);
+    
+    // 稀有装备加粗显示
+    let nameHtml = newItem.name;
+    if (newItem.color) nameHtml = `<span style="color:${newItem.color}; font-weight:bold">${newItem.name}</span>`;
+    addLog(`你获得了：${nameHtml}`);
   }
   updateUI();
 }
 
-// 确认使用物品 (由 UI 选择角色后调用)
 window.confirmUseItem = function(itemIndex, userIndex) {
     const item = inventory.items[itemIndex];
     const user = party[userIndex];
 
-    // --- 新增：装备逻辑分支 ---
     if (item.type === 'weapon' || item.type === 'armor') {
         window.equipItem(itemIndex, userIndex);
-        return; // 装备完毕直接返回
+        return; 
     }
-    // ------------------------
 
     if (gameState === 'COMBAT') {
         if (combatState.actedIndices.includes(userIndex)) {
@@ -50,36 +101,29 @@ window.confirmUseItem = function(itemIndex, userIndex) {
 
 window.sellItem = function(index) {
     const item = inventory.items[index];
-    if (item.type === 'treasure') {
-        inventory.gold += item.value;
-        addLog(`你卖掉了 ${item.name}，获得 ${item.value} 金币。`);
-        inventory.items.splice(index, 1);
-        updateUI();
-    }
+    // 现在装备也可以卖了，按半价
+    const sellPrice = item.type === 'treasure' ? item.value : Math.floor(item.cost / 2);
+    
+    inventory.gold += sellPrice;
+    addLog(`你卖掉了 ${item.name}，获得 ${sellPrice} 金币。`);
+    inventory.items.splice(index, 1);
+    updateUI();
 };
 
-// --- 新增：商店生成 ---
 window.generateShopItems = function() {
     window.shopStock = [];
     const lvl = window.worldLevel;
     
-    // 随机选 4 件装备，等级在 lvl 附近浮动
-    const count = 4; 
-    const allGear = [...GEAR_DATA.weapons, ...GEAR_DATA.armors];
-    
-    for(let i=0; i<count; i++) {
-        // 筛选：只卖等级 <= 当前难度+1 的装备
-        const valid = allGear.filter(g => g.level <= lvl + 1);
-        const item = valid[Math.floor(Math.random() * valid.length)];
-        if (item) {
-            window.shopStock.push({ ...item, id: Date.now() + i });
-        }
+    // 生成 5 件随机装备，使用新的生成器
+    for(let i=0; i<5; i++) {
+        const type = (Math.random() > 0.5) ? 'weapon' : 'armor';
+        const item = generateLoot(type, lvl);
+        window.shopStock.push(item);
     }
     // 必卖药水
     window.shopStock.push({ ...ITEM_TYPES.potion, cost: 10, id: 'pot_' + Date.now() });
 };
 
-// --- 新增：购买物品 ---
 window.buyItem = function(itemIdx) {
     const item = window.shopStock[itemIdx];
     if (inventory.gold < item.cost) {
@@ -87,29 +131,32 @@ window.buyItem = function(itemIdx) {
         return;
     }
     inventory.gold -= item.cost;
-    inventory.items.push(item);
+    // 必须深拷贝，防止买同一个引用
+    inventory.items.push(JSON.parse(JSON.stringify(item)));
     addLog(`购买了 ${item.name}。`);
     updateUI();
 };
 
-// --- 新增：穿戴装备 ---
 window.equipItem = function(itemIndex, charIndex) {
     const item = inventory.items[itemIndex];
     const char = party[charIndex];
     
     if (item.type === 'weapon') {
-        // 卸下旧的放回背包
         if (char.equipment.weapon) inventory.items.push(char.equipment.weapon);
         char.equipment.weapon = item;
     } else if (item.type === 'armor') {
         if (char.equipment.armor) {
-             char.maxHp -= (char.equipment.armor.hpMax || 0);
+             // 卸下旧甲：扣除旧甲提供的HP上限 (注意：如果当前血量高于新上限，也要扣除)
+             const oldBonus = char.equipment.armor.hpMax || 0;
+             char.maxHp -= oldBonus;
+             char.hp = Math.min(char.hp, char.maxHp); // 修正当前血量
              inventory.items.push(char.equipment.armor);
         }
         char.equipment.armor = item;
-        // 应用新护甲HP加成，并按比例回血
-        char.maxHp += (item.hpMax || 0);
-        char.hp += (item.hpMax || 0); 
+        // 穿上新甲：增加上限，并回复等量的血
+        const newBonus = item.hpMax || 0;
+        char.maxHp += newBonus;
+        char.hp += newBonus; 
     }
     
     inventory.items.splice(itemIndex, 1);

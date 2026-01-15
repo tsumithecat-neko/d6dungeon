@@ -4,13 +4,11 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
-  // 难度 Scaling
   const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
   enemyData.hp = Math.floor(enemyData.hp * multiplier);
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
-  enemyData.status = []; // 初始化敌人状态
+  enemyData.status = []; 
 
-  // 确保队伍状态被初始化 (防止旧存档报错)
   party.forEach(p => { if(!p.status) p.status = []; });
 
   if (type === 'group') {
@@ -21,6 +19,16 @@ function initCombat(template, type) {
   }
 
   combatState = { active: true, type: type, enemy: enemyData, round: 1, actedIndices: [] };
+  
+  // --- 词缀效果：战斗开始时 (如: 狂暴) ---
+  party.forEach(p => {
+      if (p.hp > 0 && p.equipment?.weapon?.affix?.effect === 'rage_start') {
+          applyStatus(p, 'rage', 3);
+          addLog(`🔥 [狂暴] ${p.name} 的武器让他热血沸腾！`);
+      }
+  });
+  // ------------------------------------
+
   updateUI();
 }
 
@@ -30,7 +38,7 @@ function applyStatus(target, type, duration) {
     if (!target.status) target.status = [];
     const existing = target.status.find(s => s.type === type);
     if (existing) {
-        existing.duration = Math.max(existing.duration, duration); // 刷新持续时间
+        existing.duration = Math.max(existing.duration, duration); 
         addLog(`> ${target.name} 的 [${STATUS_ICONS[type]}] 持续时间刷新了。`);
     } else {
         target.status.push({ type: type, duration: duration });
@@ -39,14 +47,12 @@ function applyStatus(target, type, duration) {
 }
 
 function processStatusEffects(char) {
-    if (!char.status || char.status.length === 0) return true; // true = 可以行动
+    if (!char.status || char.status.length === 0) return true; 
 
     let canAct = true;
-    // 倒序遍历以便删除
     for (let i = char.status.length - 1; i >= 0; i--) {
         const s = char.status[i];
         
-        // 效果结算
         if (s.type === 'poison') {
             char.hp -= 1;
             addLog(`${STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
@@ -86,7 +92,6 @@ function useSkill(charIndex, skillData) {
   if (combatState.actedIndices.includes(charIndex)) return;
   
   const user = party[charIndex];
-  // 技能前先检查眩晕 (虽然 fightRound 会检查，但按钮点击也要防)
   const isStunned = user.status && user.status.some(s => s.type === 'stun');
   if(isStunned) { addLog("你处于眩晕状态，无法使用技能！"); return; }
 
@@ -109,13 +114,10 @@ function fightRound() {
   const requests = [];
   const activePartyMembers = []; 
 
-  // 1. 玩家回合开始：结算状态
   addLog(`--- 第 ${combatState.round} 回合 ---`);
   
-  // 先结算所有人的 DoT，如果有死掉的就不能动了
   party.forEach((p, index) => {
       if (p.hp <= 0) return;
-      // 如果本回合已经手动行动过(如用了技能)，就不再加入普攻队列
       if (combatState.actedIndices.includes(index)) return;
 
       const canAct = processStatusEffects(p);
@@ -123,15 +125,13 @@ function fightRound() {
           requests.push({ label: p.name, id: index });
           activePartyMembers.push(p);
       } else if (!canAct) {
-          combatState.actedIndices.push(index); // 眩晕算作已行动
+          combatState.actedIndices.push(index); 
       }
   });
 
   const finishTurn = () => {
       if (checkWin()) return;
-      // 检查是否全灭 (可能被毒死)
       if (!randomAliveCharacter()) { endCombat(false); return; }
-      
       enemyTurn();
       combatState.round++;
       combatState.actedIndices = []; 
@@ -139,7 +139,6 @@ function fightRound() {
   };
 
   if (requests.length === 0) {
-      // 可能所有人眩晕或者用了技能
       finishTurn();
       return;
   }
@@ -153,7 +152,7 @@ function fightRound() {
           const roll = results[idx];
           
           if (roll === 6) {
-              addLog(`🎲 <b>${p.name} 骰出了 6！气势如虹！(MP+1)</b>`);
+              addLog(`🎲 <b>${p.name} 骰出了 6！(MP+1)</b>`);
               if (p.mp < p.maxMp) p.mp++;
           }
           combatState.actedIndices.push(idx);
@@ -167,6 +166,21 @@ function fightRound() {
           
           if (total >= TO_HIT_TARGET) {
               hits++;
+              
+              // --- 词缀效果：武器攻击特效 ---
+              const wAffix = p.equipment?.weapon?.affix;
+              if (wAffix) {
+                  if (wAffix.effect === 'poison') {
+                      addLog(`🧪 [剧毒] ${p.name} 的武器使敌人中毒了！`);
+                      applyStatus(enemy, 'poison', 3);
+                  }
+                  if (wAffix.effect === 'lifesteal') {
+                      p.hp = Math.min(p.maxHp, p.hp + 1);
+                      addLog(`🩸 [吸血] ${p.name} 恢复了 1 点生命。`);
+                  }
+              }
+              // --------------------------
+
               if (combatState.type === 'group') {
                   enemy.count--;
                   addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 击杀敌人。`);
@@ -181,17 +195,15 @@ function fightRound() {
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
 
-      finishTurn(); // 只有当 rollDiceAnim 完成后才结束回合
+      finishTurn(); 
   });
 }
 
 function enemyTurn() {
     const enemy = combatState.enemy;
-    
-    // 敌人状态结算
     const canAct = processStatusEffects(enemy);
-    if (enemy.hp <= 0) { endCombat(true); return; } // 毒死 Boss
-    if (!canAct) return; // 眩晕跳过
+    if (enemy.hp <= 0) { endCombat(true); return; } 
+    if (!canAct) return; 
 
     addLog(`敌人反击...`);
     let attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2; 
@@ -200,16 +212,12 @@ function enemyTurn() {
         const target = randomAliveCharacter();
         if (!target) break; 
         
-        // --- 敌人 AI：尝试使用技能 ---
         let skillUsed = false;
         if (enemy.skills && enemy.skills.length > 0) {
-            // 30% 几率尝试用技能 (如果是 Boss，几率更高)
             const skillChance = (combatState.type === 'boss') ? 0.5 : 0.3;
             if (Math.random() < skillChance) {
                 const skillKey = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
                 const skillDef = MONSTER_SKILLS[skillKey];
-                
-                // 技能自身的触发判定
                 if (skillDef && Math.random() < (skillDef.rate || 1.0)) {
                     addLog(`⚠️ <b>${enemy.name} 使用了 [${skillDef.name}]！</b>`);
                     const finalTarget = skillDef.targetSelf ? enemy : target;
@@ -219,14 +227,31 @@ function enemyTurn() {
                 }
             }
         }
-        // ---------------------------
 
         if (!skillUsed) {
+            // --- 词缀效果：防具受击特效 ---
+            const aAffix = target.equipment?.armor?.affix;
+            if (aAffix && aAffix.effect === 'dodge') {
+                if (Math.random() < 0.15) { // 15% 闪避
+                    addLog(`💨 [轻灵] ${target.name} 灵巧地闪过了攻击！`);
+                    continue; // 跳过这次伤害
+                }
+            }
+            // ---------------------------
+
             const roll = d6();
             const attBonus = enemy.att + getStatusBonus(enemy, 'att');
             if (roll + attBonus >= TO_HIT_TARGET) {
                 target.hp -= 1;
                 addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
+                
+                // --- 词缀效果：荆棘反伤 ---
+                if (aAffix && aAffix.effect === 'thorns') {
+                    enemy.hp -= 1;
+                    addLog(`🌵 [荆棘] 铠甲反弹了 1 点伤害！`);
+                }
+                // -----------------------
+
             } else {
                 addLog(`${enemy.name} 扑向 ${target.name} 但被躲开了。`);
             }
@@ -245,7 +270,6 @@ function checkWin() {
 
 function endCombat(win) {
   combatState.active = false;
-  // 战斗结束清除全员状态 (除了永久BUFF，但目前全是临时的)
   party.forEach(p => p.status = []);
   
   if (win) {

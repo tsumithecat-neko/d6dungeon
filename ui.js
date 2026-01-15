@@ -138,9 +138,14 @@ function renderParty(){
     const mpBars = p.mp;
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
-    const w = p.equipment?.weapon ? `🗡️${p.equipment.weapon.name}` : '👊空手';
-    const a = p.equipment?.armor ? `🛡️${p.equipment.armor.name}` : '👕布衣';
-    const xpPct = (p.xp / p.maxXp) * 100;
+    // --- 装备显示 (支持颜色) ---
+    const renderEquip = (eq) => {
+        if (!eq) return '无';
+        const colorStyle = eq.color ? `color:${eq.color}; font-weight:bold` : '';
+        return `<span style="${colorStyle}">${eq.name}</span>`;
+    };
+    const w = p.equipment?.weapon ? `🗡️${renderEquip(p.equipment.weapon)}` : '👊空手';
+    const a = p.equipment?.armor ? `🛡️${renderEquip(p.equipment.armor)}` : '👕布衣';
 
     // --- 状态图标 ---
     let statusHtml = '';
@@ -231,7 +236,12 @@ function renderTownShop() {
     window.shopStock.forEach((item, idx) => {
         const row = document.createElement('div'); row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #ccc; padding:4px 0";
         let desc = item.type === 'weapon' ? `攻+${item.att}` : (item.type==='armor'?`HP+${item.hpMax}`:item.desc);
-        row.innerHTML = `<span><b>${item.name}</b> <small>${desc}</small></span>`;
+        if(item.desc && item.desc.includes('[')) desc = item.desc; // 优先显示词缀描述
+        
+        let nameHtml = item.name;
+        if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
+        
+        row.innerHTML = `<span>${nameHtml} <small style="font-size:0.8em; color:#555">${desc}</small></span>`;
         const buyBtn = document.createElement('button'); buyBtn.textContent = `${item.cost} G`; buyBtn.style.fontSize = "0.9em"; buyBtn.onclick = () => window.buyItem(idx);
         if (inventory.gold < item.cost) { buyBtn.disabled = true; buyBtn.style.opacity = 0.6; }
         row.appendChild(buyBtn); shopDiv.appendChild(row);
@@ -369,8 +379,14 @@ function renderInventory() {
   inventory.items.forEach((item, index) => {
     const li = document.createElement('li');
     li.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dotted #ccc; padding:6px 0";
+    
+    // --- 名称染色 ---
+    let nameHtml = item.name;
+    if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
+    // --------------
+
     const infoSpan = document.createElement('div');
-    infoSpan.innerHTML = `<b>${item.name}</b> <small style="color:#666">${item.desc || (item.att?'攻+'+item.att:'HP+'+item.hpMax)}</small>`;
+    infoSpan.innerHTML = `<b>${nameHtml}</b> <small style="color:#666">${item.desc || (item.att?'攻+'+item.att:'HP+'+item.hpMax)}</small>`;
     const btn = document.createElement('button');
     btn.className = 'useBtn'; btn.style.fontSize = '0.8em'; btn.style.padding = '2px 8px';
     

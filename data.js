@@ -14,47 +14,35 @@ const STATUS_ICONS = {
 // --- 怪物技能库 ---
 const MONSTER_SKILLS = {
     'poison_spit': { 
-        name: "剧毒喷吐", 
-        desc: "造成1点伤害并施加中毒(3回合)", 
-        rate: 0.4, // 触发几率
+        name: "剧毒喷吐", desc: "造成1点伤害并施加中毒(3回合)", rate: 0.4, 
         perform: (user, target) => {
-            target.hp -= 1;
-            applyStatus(target, 'poison', 3);
+            target.hp -= 1; applyStatus(target, 'poison', 3);
             return `${user.name} 喷出一口毒液！${target.name} 受伤并中毒了。`;
         }
     },
     'web_trap': {
-        name: "蛛网缠绕",
-        desc: "使目标眩晕(1回合)",
-        rate: 0.3,
+        name: "蛛网缠绕", desc: "使目标眩晕(1回合)", rate: 0.3,
         perform: (user, target) => {
             applyStatus(target, 'stun', 1);
             return `${user.name} 射出粘稠的蛛网，${target.name} 动弹不得！`;
         }
     },
     'warcry': {
-        name: "战吼",
-        desc: "自身获得狂暴(3回合)",
-        rate: 0.3,
-        targetSelf: true,
+        name: "战吼", desc: "自身获得狂暴(3回合)", rate: 0.3, targetSelf: true,
         perform: (user) => {
             applyStatus(user, 'rage', 3);
             return `${user.name} 发出震耳欲聋的咆哮，进入了狂暴状态！`;
         }
     },
     'curse': {
-        name: "虚弱诅咒",
-        desc: "使目标虚弱(3回合)",
-        rate: 0.4,
+        name: "虚弱诅咒", desc: "使目标虚弱(3回合)", rate: 0.4,
         perform: (user, target) => {
             applyStatus(target, 'weak', 3);
             return `${user.name} 念出亵渎的咒语，${target.name} 感到力量流失了。`;
         }
     },
     'smash': {
-        name: "重击",
-        desc: "造成2点强力伤害",
-        rate: 0.5,
+        name: "重击", desc: "造成2点强力伤害", rate: 0.5,
         perform: (user, target) => {
             target.hp -= 2;
             return `${user.name} 蓄力重击！${target.name} 受到了 2 点伤害！`;
@@ -62,7 +50,23 @@ const MONSTER_SKILLS = {
     }
 };
 
-// --- 怪物池 (已更新技能) ---
+// --- 装备词缀定义 (新增) ---
+const WEAPON_AFFIXES = [
+    { name: "锋利的", att: 1, chance: 0.3, costMult: 1.5 },
+    { name: "致命的", att: 2, chance: 0.1, color: "#e91e63", costMult: 2.5 }, // 史诗
+    { name: "剧毒的", effect: "poison", chance: 0.2, color: "#4caf50", desc: "攻击施加中毒", costMult: 2 },
+    { name: "吸血的", effect: "lifesteal", chance: 0.1, color: "#f44336", desc: "攻击恢复1HP", costMult: 3 },
+    { name: "狂暴的", effect: "rage_start", chance: 0.1, color: "#ff9800", desc: "战斗开始获得狂暴", costMult: 2.5 }
+];
+
+const ARMOR_AFFIXES = [
+    { name: "坚固的", hpMax: 2, chance: 0.3, costMult: 1.5 },
+    { name: "神佑的", hpMax: 4, chance: 0.1, color: "#2196f3", costMult: 2.5 }, // 史诗
+    { name: "荆棘的", effect: "thorns", chance: 0.2, color: "#795548", desc: "反弹1点伤害", costMult: 2 },
+    { name: "轻灵的", effect: "dodge", chance: 0.1, color: "#00bcd4", desc: "15%几率闪避", costMult: 2.5 }
+];
+
+// --- 怪物池 ---
 const MONSTER_POOLS = {
   minion: [ 
       { name: "骷髅兵", count: 4, att: 0, skills: [] }, 
@@ -112,10 +116,6 @@ const CONNECTOR_CORRIDORS = {
     vert_1:  { name: "短通道", type: "corridor", w: 1, h: 1, shape: 'rect' },
     vert_2:  { name: "通道", type: "corridor", w: 1, h: 2, shape: 'rect' }
 };
-
-// 职业/种族/技能/物品 保持不变 (为了节省篇幅，这里继承之前的定义)
-// 注意：如果你之前覆盖了 data.js，请确保这些基础数据还在。
-// 建议：直接保留下面的代码块作为完整文件。
 
 const CLASS_BASE_STATS = {
     warrior: { name: "战士", hp: 10, mp: 2, att: 1, desc: "前排肉盾，擅长物理攻击" },
