@@ -10,7 +10,17 @@ const PENCIL_COLOR = '#666';
 const HIGHLIGHT_COLOR = '#b71c1c'; 
 window.TILE_SIZE = 20; 
 
+// 辅助函数：方向箭头
+function arrow(dir) {
+    if (dir === 'up') return '↑';
+    if (dir === 'down') return '↓';
+    if (dir === 'left') return '←';
+    if (dir === 'right') return '→';
+    return dir;
+}
+
 function updateUI() {
+  // 1. 创建界面
   if (gameState === 'CREATION') {
       ctx.fillStyle = '#f4f1ea'; 
       ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -25,19 +35,21 @@ function updateUI() {
       renderCreation(); renderParty(); renderInventory();
       return;
   }
+  // 2. 城镇界面
   if (gameState === 'TOWN') {
        ctx.fillStyle = '#fff3e0'; ctx.fillRect(0,0,canvas.width,canvas.height);
        renderParty(); renderTownShop(); renderInventory();
        return;
    }
 
+  // 3. 探索/战斗/事件界面
   drawMap();
   renderParty();
   renderControls();
   renderInventory();
   
   const log = document.getElementById('logContent');
-  log.scrollTop = log.scrollHeight;
+  if(log) log.scrollTop = log.scrollHeight;
 }
 
 function drawMap(){
@@ -125,7 +137,10 @@ function drawDoors(ctx, room, cx, cy, w, h) {
 }
 
 function renderParty(){
-  const list = document.getElementById('characters'); list.innerHTML='';
+  const list = document.getElementById('characters'); 
+  if(!list) return;
+  list.innerHTML='';
+  
   party.forEach(p=>{
     const li = document.createElement('li');
     li.style.borderBottom = "1px dashed #ccc"; li.style.paddingBottom = "6px"; li.style.marginBottom = "6px";
@@ -138,7 +153,7 @@ function renderParty(){
     const mpBars = p.mp;
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
-    // --- 装备显示 (支持颜色) ---
+    // 装备显示
     const renderEquip = (eq) => {
         if (!eq) return '无';
         const colorStyle = eq.color ? `color:${eq.color}; font-weight:bold` : '';
@@ -147,10 +162,10 @@ function renderParty(){
     const w = p.equipment?.weapon ? `🗡️${renderEquip(p.equipment.weapon)}` : '👊空手';
     const a = p.equipment?.armor ? `🛡️${renderEquip(p.equipment.armor)}` : '👕布衣';
 
-    // --- 状态图标 ---
+    // 状态图标 (安全检查)
     let statusHtml = '';
-    if (p.status && p.status.length > 0) {
-        statusHtml = p.status.map(s => STATUS_ICONS[s.type]).join(' ');
+    if (p.status && p.status.length > 0 && window.STATUS_ICONS) {
+        statusHtml = p.status.map(s => window.STATUS_ICONS[s.type] || '?').join(' ');
     }
 
     li.innerHTML = `
@@ -182,6 +197,7 @@ function renderParty(){
 
 function renderCreation() {
     const container = document.getElementById('controls');
+    if(!container) return;
     container.innerHTML = '';
     const header = document.createElement('h3');
     header.style.color = HIGHLIGHT_COLOR; header.style.marginTop = '0';
@@ -226,9 +242,9 @@ function renderCreation() {
     form.appendChild(addBtn); container.appendChild(form);
 }
 
-// --- 修改后的城镇渲染函数 ---
 function renderTownShop() {
     const container = document.getElementById('controls');
+    if(!container) return;
     container.innerHTML = ''; 
     
     // Header
@@ -237,7 +253,7 @@ function renderTownShop() {
     header.style.textAlign = 'center'; header.style.marginTop = '0';
     container.appendChild(header);
 
-    // "Next Adventure" Button (Prominent)
+    // "Next Adventure" Button
     const nextBtn = document.createElement('button');
     nextBtn.innerHTML = `⚔️ <b>整装待发：挑战下一层</b>`;
     nextBtn.style.cssText = "width:100%; padding:12px; background:#d84315; color:white; font-weight:bold; cursor:pointer; margin-bottom:15px; border:2px solid #bf360c;";
@@ -282,7 +298,7 @@ function renderTownShop() {
     smithDiv.innerHTML = `<h4 style="margin:0 0 5px 0; color:#5d4037;">⚒️ 铁匠铺 (装备强化)</h4>`;
     
     party.forEach((p, idx) => {
-        if (p.hp <= 0) return; // Dead cannot upgrade
+        if (p.hp <= 0) return; 
         const row = document.createElement('div');
         row.style.marginBottom = "8px";
         row.style.borderBottom = "1px dotted #ccc";
@@ -349,7 +365,9 @@ function renderTownShop() {
 }
 
 function renderControls(){
-  const container = document.getElementById('controls'); container.innerHTML = ''; 
+  const container = document.getElementById('controls');
+  if(!container) return;
+  container.innerHTML = ''; 
 
   if (gameState === 'EXPLORING') {
     const searchBtn = document.createElement('button');
@@ -400,8 +418,8 @@ function renderControls(){
     // --- 显示敌方状态 ---
     const enemy = combatState.enemy;
     let enemyStatusHtml = '';
-    if (enemy.status && enemy.status.length > 0) {
-        enemyStatusHtml = enemy.status.map(s => STATUS_ICONS[s.type]).join(' ');
+    if (enemy.status && enemy.status.length > 0 && window.STATUS_ICONS) {
+        enemyStatusHtml = enemy.status.map(s => window.STATUS_ICONS[s.type] || '?').join(' ');
     }
     const enemyInfo = document.createElement('div');
     enemyInfo.style.cssText = "margin-bottom:10px; text-align:center; font-weight:bold; color:#b71c1c";
@@ -469,17 +487,17 @@ function renderControls(){
 
 function renderInventory() {
   document.getElementById('goldDisplay').textContent = `${inventory.gold} G`;
-  const list = document.getElementById('itemList'); list.innerHTML = '';
+  const list = document.getElementById('itemList'); 
+  if(!list) return;
+  list.innerHTML = '';
   if (inventory.items.length === 0) { list.innerHTML = '<li style="color:#999; font-style:italic; text-align:center; padding:10px">背包里只有空气...</li>'; return; }
 
   inventory.items.forEach((item, index) => {
     const li = document.createElement('li');
     li.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dotted #ccc; padding:6px 0";
     
-    // --- 名称染色 ---
     let nameHtml = item.name;
     if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
-    // --------------
 
     const infoSpan = document.createElement('div');
     infoSpan.innerHTML = `<b>${nameHtml}</b> <small style="color:#666">${item.desc || (item.att?'攻+'+item.att:'HP+'+item.hpMax)}</small>`;
@@ -499,6 +517,7 @@ function renderInventory() {
 function showTargetSelection(itemIndex) {
     const item = inventory.items[itemIndex];
     const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
+    if(!overlay || !container) return;
     overlay.classList.add('active'); container.innerHTML = ''; 
 
     const title = document.createElement('div');
@@ -526,6 +545,7 @@ function showTargetSelection(itemIndex) {
 
 function rollDiceAnim(diceRequests, callback) {
     const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
+    if(!overlay || !container) return;
     overlay.classList.add('active'); container.innerHTML = '';
     const diceElements = [];
     diceRequests.forEach(req => {
@@ -552,6 +572,7 @@ function rollDiceAnim(diceRequests, callback) {
 
 function showSaveLoadMenu() {
     const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
+    if(!overlay || !container) return;
     overlay.classList.add('active'); container.innerHTML = ''; 
     const title = document.createElement('h2'); title.textContent = "💾 灵魂记录 (存/读档)"; title.style.width = "100%"; title.style.textAlign = "center"; title.style.fontFamily = '"Special Elite", monospace';
     container.appendChild(title);

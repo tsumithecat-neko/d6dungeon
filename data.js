@@ -3,7 +3,7 @@
 const TO_HIT_TARGET = 4; // 判定标准
 
 // --- 状态与图标 ---
-const STATUS_ICONS = {
+window.STATUS_ICONS = {
     poison: '☠️', // 中毒
     stun:   '💫', // 眩晕
     rage:   '💢', // 狂暴(加攻)
@@ -50,10 +50,10 @@ const MONSTER_SKILLS = {
     }
 };
 
-// --- 装备词缀定义 (新增) ---
+// --- 装备词缀定义 ---
 const WEAPON_AFFIXES = [
     { name: "锋利的", att: 1, chance: 0.3, costMult: 1.5 },
-    { name: "致命的", att: 2, chance: 0.1, color: "#e91e63", costMult: 2.5 }, // 史诗
+    { name: "致命的", att: 2, chance: 0.1, color: "#e91e63", costMult: 2.5 }, 
     { name: "剧毒的", effect: "poison", chance: 0.2, color: "#4caf50", desc: "攻击施加中毒", costMult: 2 },
     { name: "吸血的", effect: "lifesteal", chance: 0.1, color: "#f44336", desc: "攻击恢复1HP", costMult: 3 },
     { name: "狂暴的", effect: "rage_start", chance: 0.1, color: "#ff9800", desc: "战斗开始获得狂暴", costMult: 2.5 }
@@ -61,7 +61,7 @@ const WEAPON_AFFIXES = [
 
 const ARMOR_AFFIXES = [
     { name: "坚固的", hpMax: 2, chance: 0.3, costMult: 1.5 },
-    { name: "神佑的", hpMax: 4, chance: 0.1, color: "#2196f3", costMult: 2.5 }, // 史诗
+    { name: "神佑的", hpMax: 4, chance: 0.1, color: "#2196f3", costMult: 2.5 }, 
     { name: "荆棘的", effect: "thorns", chance: 0.2, color: "#795548", desc: "反弹1点伤害", costMult: 2 },
     { name: "轻灵的", effect: "dodge", chance: 0.1, color: "#00bcd4", desc: "15%几率闪避", costMult: 2.5 }
 ];
