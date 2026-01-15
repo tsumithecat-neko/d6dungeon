@@ -8,10 +8,9 @@ const LEGACY_UPGRADES = {
         id: 'start_gold',
         name: "富二代",
         desc: "每次冒险初始金币 +50 G",
-        cost: 10,
-        maxLevel: 5, // 可以升级5次，总共+250G
+        cost: 100,
+        maxLevel: 5, 
         apply: (gameState) => {
-            // 在 main.jsstartGame 中调用
             if (!gameState.inventory) return;
             gameState.inventory.gold += (LegacySystem.getLevel('start_gold') * 50);
         }
@@ -20,11 +19,14 @@ const LEGACY_UPGRADES = {
         id: 'potion_hoarder',
         name: "药剂囤积者",
         desc: "初始携带 1 瓶治疗药水",
-        cost: 20,
+        cost: 200,
         maxLevel: 1,
         apply: (gameState) => {
             if (LegacySystem.getLevel('potion_hoarder') > 0) {
-                gameState.inventory.items.push({ ...ITEM_TYPES.potion, id: 'legacy_pot_' + Date.now() });
+                // 确保 ITEM_TYPES 存在 (依赖 data.js)
+                if (window.ITEM_TYPES) {
+                    gameState.inventory.items.push({ ...window.ITEM_TYPES.potion, id: 'legacy_pot_' + Date.now() });
+                }
             }
         }
     },
@@ -32,7 +34,7 @@ const LEGACY_UPGRADES = {
         id: 'experienced',
         name: "老兵直觉",
         desc: "全员初始经验值 +2",
-        cost: 30,
+        cost: 300,
         maxLevel: 3,
         apply: (gameState) => {
             const bonus = LegacySystem.getLevel('experienced') * 2;
@@ -43,17 +45,20 @@ const LEGACY_UPGRADES = {
         id: 'divine_blessing',
         name: "女神眷顾",
         desc: "全员最大生命值 +1",
-        cost: 50,
+        cost: 500,
         maxLevel: 3,
         apply: (gameState) => {
             const bonus = LegacySystem.getLevel('divine_blessing');
             gameState.party.forEach(p => {
                 p.maxHp += bonus;
-                p.hp += bonus;
+                p.hp += bonus; // 同时加当前血量
             });
         }
     }
 };
+
+// --- 关键修复：将配置显式挂载到 window 对象，供 ui.js 检查 ---
+window.LEGACY_UPGRADES = LEGACY_UPGRADES;
 
 window.LegacySystem = {
     data: {
@@ -81,9 +86,9 @@ window.LegacySystem = {
 
     // 结算分数：将本局表现转换为灵魂碎片
     calculateAndAwardShards: function(floor, gold, killCount, isWin) {
-        // 计算公式：层数 * 10 + 金币 * 0.1 + 击杀数 * 2
-        let score = (floor * 10) + Math.floor(gold * 0.1) + (killCount * 2);
-        if (isWin) score += 50; // 通关奖励
+        // 计算公式：层数 * 10 + 金币 * 0.2 + 击杀数 * 5
+        let score = (floor * 10) + Math.floor(gold * 0.2) + (killCount * 5);
+        if (isWin) score += 100; // 通关大奖
 
         this.data.shards += score;
         this.save();
