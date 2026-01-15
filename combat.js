@@ -141,6 +141,11 @@ function fightRound() {
       let hits = 0;
       
       activePartyMembers.forEach((p) => {
+          // fix: 检查战斗是否已经结束（例如之前的队友已经杀死了敌人）
+          const isEnemyDead = (combatState.type === 'group' && enemy.count <= 0) || 
+                              (combatState.type === 'boss' && enemy.hp <= 0);
+          if (!combatState.active || isEnemyDead) return;
+
           const idx = party.indexOf(p);
           const roll = results[idx];
           
@@ -185,7 +190,10 @@ function fightRound() {
           }
       });
       
-      if (hits === 0) addLog("普攻未能造成有效打击！");
+      // fix: 只有在还有敌人的情况下才显示"普攻未能造成有效打击"
+      const isEnemyDeadNow = (combatState.type === 'group' && enemy.count <= 0) || 
+                             (combatState.type === 'boss' && enemy.hp <= 0);
+      if (hits === 0 && !isEnemyDeadNow) addLog("普攻未能造成有效打击！");
 
       finishTurn(); 
   });

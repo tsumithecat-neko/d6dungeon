@@ -131,7 +131,8 @@ window.equipItem = function(itemIndex, charIndex) {
         char.equipment.armor = item;
         const newBonus = item.hpMax || 0;
         char.maxHp += newBonus;
-        char.hp += newBonus; 
+        // fix: 装备防具时只增加上限，不再增加当前hp，防止刷血
+        // char.hp += newBonus; 
     }
     inventory.items.splice(itemIndex, 1);
     addLog(`${char.name} 装备了 ${item.name}。`);
