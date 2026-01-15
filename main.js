@@ -32,6 +32,17 @@ window.startGame = function() {
     combatState.active = false;
     inventory.items = []; inventory.gold = 0;
     window.worldLevel = 1;
+    
+    // --- 新增：初始化运行统计 ---
+    window.runStats = { kills: 0 }; 
+
+    // --- 新增：应用英灵殿加成 ---
+    if (window.LegacySystem) {
+        LegacySystem.applyAll({ inventory: inventory, party: party });
+        if (Object.values(LegacySystem.data.upgrades).some(v => v > 0)) {
+            addLog("✨ [英灵殿] 先祖的庇护已生效！");
+        }
+    }
 
     // 创建起始房间
     if (typeof createRoom === 'function') {
@@ -59,6 +70,8 @@ window.enterTown = function() {
     party.forEach(p => p.status = []);
     if(window.generateShopItems) window.generateShopItems();
     addLog(`🚩 英雄们满载而归，回到了城镇。当前世界等级: Lv.${window.worldLevel}`);
+    
+    // 进城也可以视为一种胜利结算节点，这里简单处理，只在全灭或通关时结算碎片
     updateUI();
 };
 

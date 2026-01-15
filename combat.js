@@ -141,7 +141,6 @@ function fightRound() {
       let hits = 0;
       
       activePartyMembers.forEach((p) => {
-          // fix: 检查战斗是否已经结束
           const isEnemyDead = (combatState.type === 'group' && enemy.count <= 0) || 
                               (combatState.type === 'boss' && enemy.hp <= 0);
           if (!combatState.active || isEnemyDead) return;
@@ -165,7 +164,7 @@ function fightRound() {
           if (total >= TO_HIT_TARGET) {
               hits++;
               
-              // 词缀效果：武器特效
+              // 词缀效果
               const wAffix = p.equipment?.weapon?.affix;
               if (wAffix) {
                   if (wAffix.effect === 'poison') {
@@ -180,6 +179,8 @@ function fightRound() {
 
               if (combatState.type === 'group') {
                   enemy.count--;
+                  // --- 新增: 击杀统计 ---
+                  if(window.runStats) window.runStats.kills = (window.runStats.kills || 0) + 1;
                   addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 击杀敌人。`);
               } else {
                   enemy.hp--;
@@ -271,19 +272,19 @@ function endCombat(win) {
     addLog(`🎉 战斗胜利！`);
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
-    const xpGain = (combatState.type === 'boss') ? 5 : 2;
-    party.forEach(p => { if (p.hp > 0) gainXp(p, xpGain); });
-
+    // 如果是 BOSS 战，也视为一次胜利，增加大量碎片
     if (combatState.type === 'boss') {
-        addLog("✨ 击败地牢领主，你在王座下发现了一个华丽的宝箱！");
-        gainLoot('item'); 
+        const shards = window.LegacySystem ? LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, (window.runStats?.kills||0), true) : 0;
+        addLog(`✨ 击败地牢领主！获得宝箱和 ${shards} 灵魂碎片！`);
         
-        // --- CHANGE: 设置为 VICTORY 状态，阻止玩家移动或操作背包 ---
+        gainLoot('item'); 
         gameState = 'VICTORY';
         updateUI(); 
         return; 
     } else {
-        // 只有非 Boss 战才回到 EXPLORING
+        const xpGain = 2;
+        party.forEach(p => { if (p.hp > 0) gainXp(p, xpGain); });
+
         gameState = 'EXPLORING';
         const lootRoll = d6();
         if (lootRoll >= 5) gainLoot('item'); 
@@ -294,6 +295,13 @@ function endCombat(win) {
   } else {
     addLog(`💀 队伍全灭...`);
     gameState = 'GAMEOVER';
+    
+    // --- 新增: 英灵殿结算 ---
+    if (window.LegacySystem) {
+        const kills = window.runStats ? window.runStats.kills : 0;
+        const shards = LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, kills, false);
+        addLog(`👻 你的灵魂飘向了英灵殿... (本局获得 ${shards} 碎片)`);
+    }
   }
   updateUI();
 }

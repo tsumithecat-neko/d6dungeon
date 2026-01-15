@@ -10,7 +10,6 @@ const PENCIL_COLOR = '#666';
 const HIGHLIGHT_COLOR = '#b71c1c'; 
 window.TILE_SIZE = 20; 
 
-// 修复：补全辅助函数
 function arrow(dir) {
     if (dir === 'up') return '↑';
     if (dir === 'down') return '↓';
@@ -150,9 +149,7 @@ function renderParty(){
     const mpBars = p.mp;
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
-    // --- 修复开始: 添加 xpPct 计算 ---
     const xpPct = Math.floor((p.xp / p.maxXp) * 100);
-    // --- 修复结束 ---
     
     const renderEquip = (eq) => {
         if (!eq) return '无';
@@ -162,7 +159,6 @@ function renderParty(){
     const w = p.equipment?.weapon ? `🗡️${renderEquip(p.equipment.weapon)}` : '👊空手';
     const a = p.equipment?.armor ? `🛡️${renderEquip(p.equipment.armor)}` : '👕布衣';
 
-    // 安全获取状态图标
     let statusHtml = '';
     if (p.status && p.status.length > 0 && window.STATUS_ICONS) {
         statusHtml = p.status.map(s => window.STATUS_ICONS[s.type] || '?').join(' ');
@@ -207,9 +203,18 @@ function renderCreation() {
 
     const loadBtn = document.createElement('button');
     loadBtn.textContent = "💾 读取旧的记忆";
-    loadBtn.style.cssText = "width:100%; padding:8px; background:#e8f5e9; color:#1b5e20; margin-bottom:15px; border:1px solid #2e7d32; cursor:pointer";
+    loadBtn.style.cssText = "width:100%; padding:8px; background:#e8f5e9; color:#1b5e20; margin-bottom:5px; border:1px solid #2e7d32; cursor:pointer";
     loadBtn.onclick = () => showSaveLoadMenu();
     container.appendChild(loadBtn);
+
+    // --- 新增：英灵殿入口 ---
+    const legacyBtn = document.createElement('button');
+    const shardCount = window.LegacySystem ? LegacySystem.data.shards : 0;
+    legacyBtn.innerHTML = `🏛️ <b>进入英灵殿</b> <span style="font-size:0.8em">(${shardCount} 碎片)</span>`;
+    legacyBtn.style.cssText = "width:100%; padding:8px; background:#e0f7fa; color:#006064; margin-bottom:15px; border:1px solid #0097a7; cursor:pointer";
+    legacyBtn.onclick = () => showLegacyMenu();
+    container.appendChild(legacyBtn);
+    // -----------------------
 
     if (party.length >= 4) {
         const startBtn = document.createElement('button');
@@ -399,13 +404,11 @@ function renderControls(){
       const eventPanel = document.createElement('div');
       eventPanel.style.border = `2px dashed ${HIGHLIGHT_COLOR}`; eventPanel.style.padding = '10px'; eventPanel.style.background = '#fff8e1';
       
-      // --- 修复：添加对 activeEvent 为空的检查，防止崩坏 ---
       if (!activeEvent) {
           const errMsg = document.createElement('div'); errMsg.innerText = "事件数据丢失...";
           eventPanel.appendChild(errMsg); container.appendChild(eventPanel);
           return;
       }
-      // ---------------------------------------------------
 
       const title = document.createElement('h3'); title.innerText = activeEvent.title; title.style.marginTop = '0'; title.style.color = HIGHLIGHT_COLOR; eventPanel.appendChild(title);
       const desc = document.createElement('p'); desc.innerText = activeEvent.desc; desc.style.fontStyle = 'italic'; desc.style.fontSize = '0.95em'; eventPanel.appendChild(desc);
@@ -458,9 +461,7 @@ function renderControls(){
         const skill = CLASS_SKILLS[p.class]; if (!skill) return;
         const hasActed = combatState.actedIndices.includes(idx);
         
-        // --- 检查眩晕 ---
         const isStunned = p.status && p.status.some(s => s.type === 'stun');
-        // ---------------
 
         const sBtn = document.createElement('button');
         sBtn.innerHTML = `<b>${p.name}</b><br><small>${skill.name}</small>`;
@@ -479,7 +480,6 @@ function renderControls(){
     combatPanel.appendChild(fleeBtn);
     container.appendChild(combatPanel);
   } else if (gameState === 'VICTORY') {
-      // --- 新增：VICTORY 状态显示 ---
       const victoryPanel = document.createElement('div');
       victoryPanel.style.textAlign = 'center';
       
@@ -538,7 +538,6 @@ function renderInventory() {
         else { btn.textContent = '使用'; btn.onclick = () => showTargetSelection(index); }
     }
     
-    // --- 新增：在 VICTORY 状态禁用所有物品操作 ---
     if (gameState === 'VICTORY') {
         btn.disabled = true;
         btn.textContent = '锁定';
@@ -638,4 +637,75 @@ function showSaveLoadMenu() {
     };
     importBox.appendChild(importBtn); container.appendChild(importBox);
     const closeBtn = document.createElement('button'); closeBtn.textContent = "关闭"; closeBtn.onclick = () => overlay.classList.remove('active'); container.appendChild(closeBtn);
+}
+
+// --- 新增：英灵殿界面 ---
+function showLegacyMenu() {
+    const overlay = document.getElementById('diceOverlay');
+    const container = document.getElementById('diceContainer');
+    if(!overlay || !container) return;
+    
+    overlay.classList.add('active'); 
+    container.innerHTML = ''; 
+
+    // 标题
+    const title = document.createElement('h2'); 
+    const shards = window.LegacySystem ? LegacySystem.data.shards : 0;
+    title.innerHTML = `🏛️ 英灵殿 (碎片: ${shards})`;
+    title.style.width = "100%"; title.style.textAlign = "center"; 
+    title.style.fontFamily = '"Special Elite", monospace';
+    container.appendChild(title);
+
+    // 列表容器
+    const list = document.createElement('div');
+    list.style.cssText = "width:100%; max-height:400px; overflow-y:auto; background:#fff; padding:10px; border:2px solid #222;";
+    
+    // 渲染升级项
+    if (window.LEGACY_UPGRADES && window.LegacySystem) {
+        Object.values(LEGACY_UPGRADES).forEach(upg => {
+            const row = document.createElement('div');
+            row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ccc; padding:10px 0;";
+            
+            const currentLv = LegacySystem.getLevel(upg.id);
+            const isMax = currentLv >= upg.maxLevel;
+            
+            const info = document.createElement('div');
+            info.innerHTML = `<b>${upg.name}</b> <small>(Lv.${currentLv}/${upg.maxLevel})</small><br><span style="color:#666; font-size:0.9em">${upg.desc}</span>`;
+            
+            const btn = document.createElement('button');
+            if (isMax) {
+                btn.textContent = "已满级";
+                btn.disabled = true;
+            } else {
+                btn.textContent = `${upg.cost} 碎片`;
+                btn.onclick = () => {
+                    if (LegacySystem.buyUpgrade(upg.id)) {
+                        showLegacyMenu(); // 刷新
+                    } else {
+                        alert("灵魂碎片不足！");
+                    }
+                };
+                if (LegacySystem.data.shards < upg.cost) {
+                    btn.style.opacity = 0.5;
+                }
+            }
+            
+            row.appendChild(info);
+            row.appendChild(btn);
+            list.appendChild(row);
+        });
+    } else {
+        list.innerHTML = "英灵殿系统似乎未正确加载。";
+    }
+    container.appendChild(list);
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button'); 
+    closeBtn.textContent = "返回现世"; 
+    closeBtn.style.cssText = "margin-top:20px; padding:10px 20px;";
+    closeBtn.onclick = () => {
+        overlay.classList.remove('active');
+        updateUI(); // 刷新主界面以更新按钮上的碎片数
+    };
+    container.appendChild(closeBtn);
 }
