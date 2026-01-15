@@ -605,38 +605,54 @@ function rollDiceAnim(diceRequests, callback) {
 }
 
 function showSaveLoadMenu() {
-    const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
+    const overlay = document.getElementById('diceOverlay'); 
+    const container = document.getElementById('diceContainer');
     if(!overlay || !container) return;
-    overlay.classList.add('active'); container.innerHTML = ''; 
-    const title = document.createElement('h2'); title.textContent = "💾 灵魂记录 (存/读档)"; title.style.width = "100%"; title.style.textAlign = "center"; title.style.fontFamily = '"Special Elite", monospace';
+    
+    overlay.classList.add('active'); 
+    container.innerHTML = ''; 
+    
+    const title = document.createElement('h2'); 
+    title.innerHTML = "💾 灵魂记录 (文件存取)"; 
+    title.style.width = "100%"; title.style.textAlign = "center"; 
+    title.style.fontFamily = '"Special Elite", monospace';
     container.appendChild(title);
 
-    const exportBox = document.createElement('div'); exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px dashed #555; background: #fff;";
-    const exportBtn = document.createElement('button'); exportBtn.textContent = "📤 生成当前存档代码"; exportBtn.style.width = "100%";
-    exportBtn.onclick = () => {
-        const code = window.exportSaveGame ? window.exportSaveGame() : "Error";
-        if(code) {
-            codeArea.value = code; codeArea.select();
-            navigator.clipboard.writeText(code).then(() => { alert("存档代码已自动复制到剪贴板！"); }).catch(() => { alert("已生成。请全选并复制下方的代码。"); });
+    // --- 导出区域 ---
+    const exportBox = document.createElement('div'); 
+    exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 15px; border: 2px dashed #555; background: #fff; text-align:center;";
+    
+    const dlBtn = document.createElement('button'); 
+    dlBtn.innerHTML = "📤 <b>保存到文件 (.json)</b><br><small>推荐：下载到本地，永久保存</small>"; 
+    dlBtn.style.cssText = "width: 80%; padding: 10px; font-size: 16px; cursor: pointer; background:#e3f2fd; color:#1565c0; border:2px solid #1565c0;";
+    dlBtn.onclick = () => {
+        window.downloadSaveFile(); // 调用 utils.js 的新函数
+    };
+    exportBox.appendChild(dlBtn);
+    container.appendChild(exportBox);
+
+    // --- 导入区域 ---
+    const importBox = document.createElement('div'); 
+    importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 15px; border: 2px solid #2e7d32; background: #e8f5e9; text-align:center;";
+    
+    const loadBtn = document.createElement('button'); 
+    loadBtn.innerHTML = "📥 <b>读取存档文件</b><br><small>选择之前的 .json 文件</small>"; 
+    loadBtn.style.cssText = "width: 80%; padding: 10px; font-size: 16px; cursor: pointer; background:#c8e6c9; color:#2e7d32; border:2px solid #2e7d32;";
+    loadBtn.onclick = () => {
+        if (window.confirm("确定要读取新存档吗？当前未保存的进度将丢失。")) {
+            window.triggerImportFile(); // 调用 utils.js 的新函数
+            overlay.classList.remove('active');
         }
     };
-    exportBox.appendChild(exportBtn);
-    const codeArea = document.createElement('textarea'); codeArea.placeholder = "点击上方按钮生成存档代码，然后复制保存..."; codeArea.style.cssText = "width: 100%; height: 80px; margin-top: 10px; font-size: 12px; resize: none; border: 1px solid #ccc;";
-    exportBox.appendChild(codeArea); container.appendChild(exportBox);
+    importBox.appendChild(loadBtn);
+    container.appendChild(importBox);
 
-    const importBox = document.createElement('div'); importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px solid #2e7d32; background: #e8f5e9;";
-    const importInput = document.createElement('textarea'); importInput.placeholder = "在此粘贴存档代码以恢复进度..."; importInput.style.cssText = "width: 100%; height: 60px; margin-bottom: 10px; font-size: 12px; resize: none; border: 1px solid #2e7d32;";
-    importBox.appendChild(importInput);
-
-    const importBtn = document.createElement('button'); importBtn.textContent = "📥 读取存档"; importBtn.style.cssText = "width: 100%; background: #2e7d32; color: white;";
-    importBtn.onclick = () => {
-        const code = importInput.value.trim(); if (!code) return;
-        if (window.confirm("确定要读取存档吗？当前未保存的进度将丢失。")) {
-            const success = window.importSaveGame(code); if (success) { overlay.classList.remove('active'); }
-        }
-    };
-    importBox.appendChild(importBtn); container.appendChild(importBox);
-    const closeBtn = document.createElement('button'); closeBtn.textContent = "关闭"; closeBtn.onclick = () => overlay.classList.remove('active'); container.appendChild(closeBtn);
+    // 关闭按钮
+    const closeBtn = document.createElement('button'); 
+    closeBtn.textContent = "关闭"; 
+    closeBtn.style.cssText = "padding: 8px 20px;";
+    closeBtn.onclick = () => overlay.classList.remove('active'); 
+    container.appendChild(closeBtn);
 }
 
 // --- 新增：英灵殿界面 ---
