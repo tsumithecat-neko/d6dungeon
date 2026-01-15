@@ -1,5 +1,22 @@
 // main.js - 游戏入口与循环控制
 
+// --- 新增：主动退役/结算函数 ---
+window.retireGame = function() {
+    if (!confirm("确定要结束这次冒险吗？\n\n当前的进度将结算为【灵魂碎片】，但角色和存档会重置。\n(活着带回战利品会有额外奖励)")) return;
+
+    if (window.LegacySystem) {
+        const kills = window.runStats ? window.runStats.kills : 0;
+        // isWin = true 代表这是主动带着战利品回来的，不是死回来的
+        const shards = LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, kills, true);
+        alert(`冒险结束！\n\n你安全地带回了战利品。\n转化为：${shards} 灵魂碎片。`);
+    } else {
+        alert("冒险结束。");
+    }
+
+    // 重置游戏回到主菜单
+    initGame();
+};
+
 window.addCharacter = function(raceKey, classKey, customName) {
     if (party.length >= 4) return;
     
@@ -39,6 +56,7 @@ window.startGame = function() {
     // --- 新增：应用英灵殿加成 ---
     if (window.LegacySystem) {
         LegacySystem.applyAll({ inventory: inventory, party: party });
+        // 检查是否有任何生效的加成
         if (Object.values(LegacySystem.data.upgrades).some(v => v > 0)) {
             addLog("✨ [英灵殿] 先祖的庇护已生效！");
         }
@@ -71,7 +89,7 @@ window.enterTown = function() {
     if(window.generateShopItems) window.generateShopItems();
     addLog(`🚩 英雄们满载而归，回到了城镇。当前世界等级: Lv.${window.worldLevel}`);
     
-    // 进城也可以视为一种胜利结算节点，这里简单处理，只在全灭或通关时结算碎片
+    // 进城也可以视为一种胜利结算节点，这里简单处理，只在全灭或主动退役时结算碎片
     updateUI();
 };
 

@@ -258,12 +258,29 @@ function renderTownShop() {
     header.style.textAlign = 'center'; header.style.marginTop = '0';
     container.appendChild(header);
 
-    // "Next Adventure" Button
+    // --- 新增：按钮组 ---
+    const btnGroup = document.createElement('div');
+    btnGroup.style.display = 'flex';
+    btnGroup.style.gap = '10px';
+    btnGroup.style.marginBottom = '15px';
+
+    // 1. 下一层按钮
     const nextBtn = document.createElement('button');
-    nextBtn.innerHTML = `⚔️ <b>整装待发：挑战下一层</b>`;
-    nextBtn.style.cssText = "width:100%; padding:12px; background:#d84315; color:white; font-weight:bold; cursor:pointer; margin-bottom:15px; border:2px solid #bf360c;";
+    nextBtn.innerHTML = `⚔️ <b>挑战下一层</b>`;
+    nextBtn.style.cssText = "flex: 2; padding:12px; background:#d84315; color:white; font-weight:bold; cursor:pointer; border:2px solid #bf360c;";
     nextBtn.onclick = () => window.startNextRun();
-    container.appendChild(nextBtn);
+    btnGroup.appendChild(nextBtn);
+
+    // 2. 结束冒险按钮 (主动结算)
+    const retireBtn = document.createElement('button');
+    retireBtn.innerHTML = `🏠 <b>结算/退役</b>`;
+    retireBtn.style.cssText = "flex: 1; padding:12px; background:#fff; color:#333; font-weight:bold; cursor:pointer; border:2px solid #555;";
+    retireBtn.title = "结束当前游戏，将战利品结算为灵魂碎片";
+    retireBtn.onclick = () => window.retireGame();
+    btnGroup.appendChild(retireBtn);
+
+    container.appendChild(btnGroup);
+    // ----------------
 
     // 1. Church Block
     const churchDiv = document.createElement('div');
@@ -604,6 +621,7 @@ function rollDiceAnim(diceRequests, callback) {
     }, 800); 
 }
 
+// --- 适配新的文件读写存档系统 ---
 function showSaveLoadMenu() {
     const overlay = document.getElementById('diceOverlay'); 
     const container = document.getElementById('diceContainer');
@@ -626,7 +644,9 @@ function showSaveLoadMenu() {
     dlBtn.innerHTML = "📤 <b>保存到文件 (.json)</b><br><small>推荐：下载到本地，永久保存</small>"; 
     dlBtn.style.cssText = "width: 80%; padding: 10px; font-size: 16px; cursor: pointer; background:#e3f2fd; color:#1565c0; border:2px solid #1565c0;";
     dlBtn.onclick = () => {
-        window.downloadSaveFile(); // 调用 utils.js 的新函数
+        // 调用 utils.js 的新函数 (需确保 utils.js 已更新)
+        if (window.downloadSaveFile) window.downloadSaveFile(); 
+        else alert("缺少下载功能，请更新 utils.js");
     };
     exportBox.appendChild(dlBtn);
     container.appendChild(exportBox);
@@ -640,7 +660,8 @@ function showSaveLoadMenu() {
     loadBtn.style.cssText = "width: 80%; padding: 10px; font-size: 16px; cursor: pointer; background:#c8e6c9; color:#2e7d32; border:2px solid #2e7d32;";
     loadBtn.onclick = () => {
         if (window.confirm("确定要读取新存档吗？当前未保存的进度将丢失。")) {
-            window.triggerImportFile(); // 调用 utils.js 的新函数
+            if (window.triggerImportFile) window.triggerImportFile();
+            else alert("缺少读取功能，请更新 utils.js");
             overlay.classList.remove('active');
         }
     };
@@ -655,7 +676,7 @@ function showSaveLoadMenu() {
     container.appendChild(closeBtn);
 }
 
-// --- 新增：英灵殿界面 ---
+// --- 英灵殿界面 ---
 function showLegacyMenu() {
     const overlay = document.getElementById('diceOverlay');
     const container = document.getElementById('diceContainer');
@@ -676,9 +697,9 @@ function showLegacyMenu() {
     const list = document.createElement('div');
     list.style.cssText = "width:100%; max-height:400px; overflow-y:auto; background:#fff; padding:10px; border:2px solid #222;";
     
-    // 渲染升级项
+    // 使用 window.LEGACY_UPGRADES 进行安全检查
     if (window.LEGACY_UPGRADES && window.LegacySystem) {
-        Object.values(LEGACY_UPGRADES).forEach(upg => {
+        Object.values(window.LEGACY_UPGRADES).forEach(upg => {
             const row = document.createElement('div');
             row.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #ccc; padding:10px 0;";
             
@@ -711,7 +732,9 @@ function showLegacyMenu() {
             list.appendChild(row);
         });
     } else {
-        list.innerHTML = "英灵殿系统似乎未正确加载。";
+        list.innerHTML = `<div style="text-align:center; padding:20px;">
+          ⚠️ 英灵殿系统未正确加载。<br>请检查 legacy.js 是否已引入，以及是否使用了正确的修复版本。
+        </div>`;
     }
     container.appendChild(list);
 

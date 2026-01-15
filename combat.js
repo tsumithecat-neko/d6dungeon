@@ -272,13 +272,14 @@ function endCombat(win) {
     addLog(`🎉 战斗胜利！`);
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
-    // 如果是 BOSS 战，也视为一次胜利，增加大量碎片
+    // 如果是 BOSS 战
     if (combatState.type === 'boss') {
-        const shards = window.LegacySystem ? LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, (window.runStats?.kills||0), true) : 0;
-        addLog(`✨ 击败地牢领主！获得宝箱和 ${shards} 灵魂碎片！`);
+        // --- 修改：移除了 calculateAndAwardShards 调用 ---
+        addLog(`✨ 击败地牢领主！虽然没有直接获得碎片，但你的传奇还在继续...`);
+        addLog(`(想要结算碎片，请在城镇中选择“结束冒险”)`);
         
         gainLoot('item'); 
-        gameState = 'VICTORY';
+        gameState = 'VICTORY'; // 胜利状态，等待回城
         updateUI(); 
         return; 
     } else {
@@ -296,11 +297,11 @@ function endCombat(win) {
     addLog(`💀 队伍全灭...`);
     gameState = 'GAMEOVER';
     
-    // --- 新增: 英灵殿结算 ---
+    // --- 失败时依然自动结算 ---
     if (window.LegacySystem) {
         const kills = window.runStats ? window.runStats.kills : 0;
         const shards = LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, kills, false);
-        addLog(`👻 你的灵魂飘向了英灵殿... (本局获得 ${shards} 碎片)`);
+        addLog(`👻 你的灵魂飘向了英灵殿... (获得 ${shards} 碎片)`);
     }
   }
   updateUI();
