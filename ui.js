@@ -150,6 +150,10 @@ function renderParty(){
     const mpBars = p.mp;
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
+    // --- 修复开始: 添加 xpPct 计算 ---
+    const xpPct = Math.floor((p.xp / p.maxXp) * 100);
+    // --- 修复结束 ---
+    
     const renderEquip = (eq) => {
         if (!eq) return '无';
         const colorStyle = eq.color ? `color:${eq.color}; font-weight:bold` : '';
@@ -394,6 +398,15 @@ function renderControls(){
   } else if (gameState === 'EVENT') {
       const eventPanel = document.createElement('div');
       eventPanel.style.border = `2px dashed ${HIGHLIGHT_COLOR}`; eventPanel.style.padding = '10px'; eventPanel.style.background = '#fff8e1';
+      
+      // --- 修复：添加对 activeEvent 为空的检查，防止崩坏 ---
+      if (!activeEvent) {
+          const errMsg = document.createElement('div'); errMsg.innerText = "事件数据丢失...";
+          eventPanel.appendChild(errMsg); container.appendChild(eventPanel);
+          return;
+      }
+      // ---------------------------------------------------
+
       const title = document.createElement('h3'); title.innerText = activeEvent.title; title.style.marginTop = '0'; title.style.color = HIGHLIGHT_COLOR; eventPanel.appendChild(title);
       const desc = document.createElement('p'); desc.innerText = activeEvent.desc; desc.style.fontStyle = 'italic'; desc.style.fontSize = '0.95em'; eventPanel.appendChild(desc);
       activeEvent.options.forEach((opt, idx) => {
