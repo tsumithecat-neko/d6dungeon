@@ -33,7 +33,7 @@ const CONNECTOR_CORRIDORS = {
     vert_2:  { name: "通道", type: "corridor", w: 1, h: 2, shape: 'rect' }
 };
 
-// --- 1. 职业基础属性 (扩充到6个) ---
+// --- 1. 职业基础属性 ---
 const CLASS_BASE_STATS = {
     warrior: { name: "战士", hp: 10, mp: 2, att: 1, desc: "前排肉盾，擅长物理攻击" },
     rogue:   { name: "盗贼", hp: 7,  mp: 4, att: 1, desc: "技巧型，擅长暴击和闪避" },
@@ -43,7 +43,7 @@ const CLASS_BASE_STATS = {
     ranger:  { name: "游侠",   hp: 8, mp: 4, att: 1, desc: "远程射手，多段攻击" }
 };
 
-// --- 2. 种族修正 (扩充到6个) ---
+// --- 2. 种族修正 ---
 const RACES = {
     human:    { name: "人类", hp: 1, mp: 1, att: 0, desc: "均衡多才 (HP+1, MP+1)" },
     dwarf:    { name: "矮人", hp: 3, mp: -1, att: 0, desc: "坚韧顽强 (HP+3, MP-1)" },
@@ -53,12 +53,10 @@ const RACES = {
     tiefling: { name: "提夫林", hp: 0, mp: 1, att: 1, desc: "炼狱血统 (攻+1, MP+1)" }
 };
 
-// --- 3. 职业技能定义 (扩充到6个) ---
+// --- 3. 职业技能定义 ---
 const CLASS_SKILLS = {
     warrior: {
-        name: "强力横扫",
-        cost: 1,
-        desc: "消耗1体力，对敌人造成必中的 2 点伤害（群体战时击杀2人）。",
+        name: "强力横扫", cost: 1, desc: "消耗1体力，对敌人造成必中的 2 点伤害。",
         effect: (user, battleState) => {
             const dmg = 2;
             if (battleState.type === 'group') {
@@ -71,9 +69,7 @@ const CLASS_SKILLS = {
         }
     },
     rogue: {
-        name: "弱点背刺",
-        cost: 1,
-        desc: "消耗1技巧，造成致命一击（击杀1个敌人或对Boss造成2伤害）。",
+        name: "弱点背刺", cost: 1, desc: "消耗1技巧，造成致命一击（击杀1个敌人或对Boss造成2伤害）。",
         effect: (user, battleState) => {
              if (battleState.type === 'group') {
                 battleState.enemy.count--;
@@ -85,9 +81,7 @@ const CLASS_SKILLS = {
         }
     },
     wizard: {
-        name: "爆裂火球",
-        cost: 2,
-        desc: "消耗2法力，随机消灭 d6 个小怪或对Boss造成 3 点伤害。",
+        name: "爆裂火球", cost: 2, desc: "消耗2法力，随机消灭 d6 个小怪或对Boss造成 3 点伤害。",
         effect: (user, battleState) => {
             const roll = Math.floor(Math.random()*6)+1;
             if (battleState.type === 'group') {
@@ -101,9 +95,7 @@ const CLASS_SKILLS = {
         }
     },
     cleric: {
-        name: "神圣治愈",
-        cost: 2,
-        desc: "消耗2信仰，为生命值最低的队友恢复 4 点 HP。",
+        name: "神圣治愈", cost: 2, desc: "消耗2信仰，为生命值最低的队友恢复 4 点 HP。",
         effect: (user, battleState) => {
             let target = party.sort((a,b) => a.hp - b.hp)[0];
             const healAmt = 4;
@@ -112,9 +104,7 @@ const CLASS_SKILLS = {
         }
     },
     paladin: {
-        name: "圣佑打击",
-        cost: 2,
-        desc: "消耗2信仰，造成2点伤害，并为自己恢复2点HP（攻守兼备）。",
+        name: "圣佑打击", cost: 2, desc: "消耗2信仰，造成2点伤害，并为自己恢复2点HP。",
         effect: (user, battleState) => {
             if (battleState.type === 'group') {
                 battleState.enemy.count = Math.max(0, battleState.enemy.count - 2);
@@ -124,14 +114,11 @@ const CLASS_SKILLS = {
             const heal = 2;
             const oldHp = user.hp;
             user.hp = Math.min(user.maxHp, user.hp + heal);
-            
             return `${user.name} 沐浴着圣光挥剑！造成伤害并恢复了 ${user.hp - oldHp} 点生命。`;
         }
     },
     ranger: {
-        name: "双重射击",
-        cost: 2,
-        desc: "消耗2体力，发动两次攻击（共造成2点伤害），精准高效。",
+        name: "双重射击", cost: 2, desc: "消耗2体力，发动两次攻击（共造成2点伤害）。",
         effect: (user, battleState) => {
             if (battleState.type === 'group') {
                 battleState.enemy.count = Math.max(0, battleState.enemy.count - 2);
@@ -144,7 +131,87 @@ const CLASS_SKILLS = {
     }
 };
 
-// --- 新增：职业升级成长表 ---
+// --- 新增：互动事件定义 ---
+const EVENT_DEFINITIONS = {
+    '陷阱': {
+        title: "⛔ 致命机关",
+        desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
+        options: [
+            {
+                label: "✋ 尝试拆除",
+                reqClass: "rogue",
+                desc: "需: 盗贼。利用专业工具尝试卡住齿轮。(成功率: 极高)",
+                type: "class_check",
+                outcome: "success_loot"
+            },
+            {
+                label: "🏃 全员闪避",
+                desc: "全队尝试躲开毒箭。(判定: d6 >= 4)",
+                type: "roll_check",
+                target: 4,
+                failDamage: 2,
+                successMsg: "你们身手矫健，毒箭全部射在了空地上！",
+                failMsg: "反应太慢了！几名队友被毒箭擦伤。"
+            },
+            {
+                label: "🛡️ 举盾硬抗",
+                desc: "需: 战士/圣骑士。站在最前面挡下伤害。",
+                type: "tank_damage",
+                damage: 2, // 坦克受少量伤害，保护其他人
+                validClasses: ["warrior", "paladin"]
+            }
+        ]
+    },
+    '祭坛': {
+        title: "🕯️ 诡异的祭坛",
+        desc: "房间中央摆放着一座散发着微光的石制祭坛，上面刻满了模糊不清的符文。",
+        options: [
+            {
+                label: "🙏 虔诚祈祷",
+                reqClass: ["cleric", "paladin"],
+                desc: "需: 牧师/圣骑士。向神明祈求庇护。(恢复全体 HP)",
+                type: "heal_party",
+                amount: 3
+            },
+            {
+                label: "🩸 献祭鲜血",
+                desc: "献上自己的生命力以换取力量。(HP -3, 获得经验/金币)",
+                type: "sacrifice",
+                cost: 3
+            },
+            {
+                label: "👋 转身离开",
+                desc: "不要招惹未知的存在。",
+                type: "leave"
+            }
+        ]
+    },
+    '谜题': {
+        title: "🧩 远古谜题",
+        desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
+        options: [
+            {
+                label: "✨ 解读符文",
+                reqClass: "wizard",
+                desc: "需: 法师。利用奥术知识直接破解。(获得宝物)",
+                type: "auto_loot"
+            },
+            {
+                label: "🎲 尝试猜测",
+                desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)",
+                type: "gamble"
+            },
+            {
+                label: "💥 暴力破门",
+                reqClass: ["warrior", "orc"], // 职业或种族
+                desc: "需: 战士/兽人。用蛮力砸开它！(可能触发战斗)",
+                type: "force_open"
+            }
+        ]
+    }
+};
+
+// --- 4. 职业升级成长表 ---
 const CLASS_GROWTH = {
     warrior: { hp: 2, mp: 0, att: 1, desc: "体格强化 (HP+2, 攻+1)" },
     rogue:   { hp: 1, mp: 1, att: 1, desc: "技巧磨练 (HP+1, MP+1, 攻+1)" },
@@ -161,7 +228,7 @@ const MONSTER_POOLS = {
   boss: [ { name: "双头食人魔", hp: 8, att: 2 }, { name: "混沌死灵法师", hp: 6, att: 3 }, { name: "石化美杜莎", hp: 6, att: 3 }, { name: "深渊恶魔", hp: 10, att: 2 } ]
 };
 
-// 物品定义 (消耗品/宝物)
+// 物品定义
 const ITEM_TYPES = {
   potion: { name: "治疗药水", type: "consumable", desc: "恢复4点HP", effect: (target) => { 
       target.hp = Math.min(target.hp + 4, target.maxHp); 
@@ -183,7 +250,7 @@ const ITEM_TYPES = {
   gem: { name: "红宝石", type: "treasure", desc: "价值 10 金币", value: 10 }
 };
 
-// --- 4. 装备数据 (新增) ---
+// --- 5. 装备数据 ---
 const GEAR_DATA = {
     weapons: [
         { name: "生锈短剑", type: "weapon", att: 1, cost: 20, level: 1 },
@@ -192,8 +259,8 @@ const GEAR_DATA = {
         { name: "屠龙巨剑", type: "weapon", att: 5, cost: 300, level: 5 }
     ],
     armors: [
-        { name: "破旧皮甲", type: "armor", def: 0, hpMax: 2, cost: 20, level: 1 }, // 增加HP上限
-        { name: "锁子甲",   type: "armor", def: 1, hpMax: 0, cost: 60, level: 2 }, // 减伤 (暂未实装减伤，这里主要演示HP加成或只是描述)
+        { name: "破旧皮甲", type: "armor", def: 0, hpMax: 2, cost: 20, level: 1 }, 
+        { name: "锁子甲",   type: "armor", def: 1, hpMax: 0, cost: 60, level: 2 }, 
         { name: "秘银板甲", type: "armor", def: 2, hpMax: 5, cost: 200, level: 4 }
     ]
 };
