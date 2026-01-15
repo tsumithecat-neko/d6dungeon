@@ -9,24 +9,13 @@ window.addCharacter = function(raceKey, classKey, customName) {
     const finalHp = cData.hp + rData.hp;
     const finalMp = cData.mp + rData.mp;
     const finalAtt = cData.att + rData.att;
-    
-    const finalName = (customName && customName.trim() !== "") 
-                      ? customName 
-                      : `${rData.name}${cData.name}`;
+    const finalName = (customName && customName.trim() !== "") ? customName : `${rData.name}${cData.name}`;
 
     const newChar = {
-        name: finalName,
-        raceName: rData.name,
-        className: cData.name,
-        class: classKey, 
-        race: raceKey,
-        
-        hp: finalHp, maxHp: finalHp,
-        mp: finalMp, maxMp: finalMp,
-        att: finalAtt,
-        lvl: 1,
-        
-        xp: 0, maxXp: 10,
+        name: finalName, raceName: rData.name, className: cData.name,
+        class: classKey, race: raceKey,
+        hp: finalHp, maxHp: finalHp, mp: finalMp, maxMp: finalMp,
+        att: finalAtt, lvl: 1, xp: 0, maxXp: 10,
         equipment: { weapon: null, armor: null },
         status: [] 
     };
@@ -36,25 +25,18 @@ window.addCharacter = function(raceKey, classKey, customName) {
 };
 
 window.startGame = function() {
-    if (party.length < 1) {
-        alert("请至少创建一个角色！");
-        return;
-    }
+    if (party.length < 1) { alert("请至少创建一个角色！"); return; }
     
     // 初始化地牢
     for(let key in dungeon) delete dungeon[key];
     combatState.active = false;
-    inventory.items = []; 
-    inventory.gold = 0;
+    inventory.items = []; inventory.gold = 0;
     window.worldLevel = 1;
 
     // 创建起始房间
-    // 确保 createRoom 存在
     if (typeof createRoom === 'function') {
         const startRoom = createRoom('start');
-        startRoom.absX = 0;
-        startRoom.absY = 0;
-        startRoom.id = 'start_room';
+        startRoom.absX = 0; startRoom.absY = 0; startRoom.id = 'start_room';
         dungeon['start_room'] = startRoom;
         playerRoomId = 'start_room';
         
@@ -63,7 +45,6 @@ window.startGame = function() {
         addLog("队伍集结完毕。你们站在古老地牢的入口，火把照亮了通往黑暗的第一步...");
     } else {
         console.error("Critical Error: createRoom not found!");
-        addLog("错误：地牢生成器损坏，请检查代码。");
     }
 };
 
@@ -83,7 +64,6 @@ window.enterTown = function() {
 
 window.startNextRun = function() {
     window.worldLevel++; 
-    
     for(let key in dungeon) delete dungeon[key];
     combatState.active = false;
     
@@ -95,10 +75,7 @@ window.startNextRun = function() {
         
         party.forEach(p => {
             p.status = []; 
-            if(p.hp <= 0) {
-                p.hp = 1; 
-                addLog(`${p.name} 勉强苏醒了过来 (1 HP)。`);
-            }
+            if(p.hp <= 0) { p.hp = 1; addLog(`${p.name} 勉强苏醒了过来 (1 HP)。`); }
         });
 
         gameState = 'EXPLORING';
@@ -107,5 +84,4 @@ window.startNextRun = function() {
     }
 };
 
-// 确保页面加载完成后初始化
 setTimeout(initGame, 100);

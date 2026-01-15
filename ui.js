@@ -10,7 +10,7 @@ const PENCIL_COLOR = '#666';
 const HIGHLIGHT_COLOR = '#b71c1c'; 
 window.TILE_SIZE = 20; 
 
-// 辅助函数：方向箭头
+// 修复：补全辅助函数
 function arrow(dir) {
     if (dir === 'up') return '↑';
     if (dir === 'down') return '↓';
@@ -20,7 +20,6 @@ function arrow(dir) {
 }
 
 function updateUI() {
-  // 1. 创建界面
   if (gameState === 'CREATION') {
       ctx.fillStyle = '#f4f1ea'; 
       ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -35,14 +34,12 @@ function updateUI() {
       renderCreation(); renderParty(); renderInventory();
       return;
   }
-  // 2. 城镇界面
   if (gameState === 'TOWN') {
        ctx.fillStyle = '#fff3e0'; ctx.fillRect(0,0,canvas.width,canvas.height);
        renderParty(); renderTownShop(); renderInventory();
        return;
    }
 
-  // 3. 探索/战斗/事件界面
   drawMap();
   renderParty();
   renderControls();
@@ -153,7 +150,6 @@ function renderParty(){
     const mpBars = p.mp;
     const mpStr = '●'.repeat(Math.max(0, mpBars)).padEnd(maxMp, '○');
     
-    // 装备显示
     const renderEquip = (eq) => {
         if (!eq) return '无';
         const colorStyle = eq.color ? `color:${eq.color}; font-weight:bold` : '';
@@ -162,7 +158,7 @@ function renderParty(){
     const w = p.equipment?.weapon ? `🗡️${renderEquip(p.equipment.weapon)}` : '👊空手';
     const a = p.equipment?.armor ? `🛡️${renderEquip(p.equipment.armor)}` : '👕布衣';
 
-    // 状态图标 (安全检查)
+    // 安全获取状态图标
     let statusHtml = '';
     if (p.status && p.status.length > 0 && window.STATUS_ICONS) {
         statusHtml = p.status.map(s => window.STATUS_ICONS[s.type] || '?').join(' ');
@@ -496,8 +492,10 @@ function renderInventory() {
     const li = document.createElement('li');
     li.style.cssText = "display:flex; justify-content:space-between; align-items:center; border-bottom:1px dotted #ccc; padding:6px 0";
     
+    // --- 名称染色 ---
     let nameHtml = item.name;
     if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
+    // --------------
 
     const infoSpan = document.createElement('div');
     infoSpan.innerHTML = `<b>${nameHtml}</b> <small style="color:#666">${item.desc || (item.att?'攻+'+item.att:'HP+'+item.hpMax)}</small>`;

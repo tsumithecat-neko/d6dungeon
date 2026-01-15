@@ -20,29 +20,26 @@ function initCombat(template, type) {
 
   combatState = { active: true, type: type, enemy: enemyData, round: 1, actedIndices: [] };
   
-  // --- 词缀效果：战斗开始时 (如: 狂暴) ---
+  // 战斗开始词缀 (狂暴)
   party.forEach(p => {
       if (p.hp > 0 && p.equipment?.weapon?.affix?.effect === 'rage_start') {
           applyStatus(p, 'rage', 3);
           addLog(`🔥 [狂暴] ${p.name} 的武器让他热血沸腾！`);
       }
   });
-  // ------------------------------------
-
   updateUI();
 }
 
 // --- 状态与辅助函数 ---
-
 function applyStatus(target, type, duration) {
     if (!target.status) target.status = [];
     const existing = target.status.find(s => s.type === type);
     if (existing) {
         existing.duration = Math.max(existing.duration, duration); 
-        addLog(`> ${target.name} 的 [${STATUS_ICONS[type]}] 持续时间刷新了。`);
+        addLog(`> ${target.name} 的 [${window.STATUS_ICONS[type]}] 持续时间刷新了。`);
     } else {
         target.status.push({ type: type, duration: duration });
-        addLog(`> ${target.name} 被施加了 [${STATUS_ICONS[type]}] 状态！`);
+        addLog(`> ${target.name} 被施加了 [${window.STATUS_ICONS[type]}] 状态！`);
     }
 }
 
@@ -55,19 +52,19 @@ function processStatusEffects(char) {
         
         if (s.type === 'poison') {
             char.hp -= 1;
-            addLog(`${STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
+            addLog(`${window.STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
         } else if (s.type === 'regen') {
             char.hp = Math.min(char.maxHp || 99, char.hp + 1);
-            addLog(`${STATUS_ICONS.regen} ${char.name} 恢复了生命 (+1 HP)。`);
+            addLog(`${window.STATUS_ICONS.regen} ${char.name} 恢复了生命 (+1 HP)。`);
         } else if (s.type === 'stun') {
             canAct = false;
-            addLog(`${STATUS_ICONS.stun} ${char.name} 眩晕中，无法行动！`);
+            addLog(`${window.STATUS_ICONS.stun} ${char.name} 眩晕中，无法行动！`);
         }
 
         s.duration--;
         if (s.duration <= 0) {
             char.status.splice(i, 1);
-            addLog(`> ${char.name} 的 [${STATUS_ICONS[s.type]}] 效果结束了。`);
+            addLog(`> ${char.name} 的 [${window.STATUS_ICONS[s.type]}] 效果结束了。`);
         }
     }
     return canAct;
@@ -85,8 +82,7 @@ function getStatusBonus(char, stat) {
     return bonus;
 }
 
-// ---------------------
-
+// --- 战斗循环 ---
 function useSkill(charIndex, skillData) {
   if (gameState !== 'COMBAT' || !combatState.active) return;
   if (combatState.actedIndices.includes(charIndex)) return;
@@ -138,10 +134,7 @@ function fightRound() {
       updateUI();
   };
 
-  if (requests.length === 0) {
-      finishTurn();
-      return;
-  }
+  if (requests.length === 0) { finishTurn(); return; }
 
   rollDiceAnim(requests, (results) => {
       const enemy = combatState.enemy;
@@ -167,7 +160,7 @@ function fightRound() {
           if (total >= TO_HIT_TARGET) {
               hits++;
               
-              // --- 词缀效果：武器攻击特效 ---
+              // 词缀效果：武器特效
               const wAffix = p.equipment?.weapon?.affix;
               if (wAffix) {
                   if (wAffix.effect === 'poison') {
@@ -179,7 +172,6 @@ function fightRound() {
                       addLog(`🩸 [吸血] ${p.name} 恢复了 1 点生命。`);
                   }
               }
-              // --------------------------
 
               if (combatState.type === 'group') {
                   enemy.count--;
@@ -229,15 +221,14 @@ function enemyTurn() {
         }
 
         if (!skillUsed) {
-            // --- 词缀效果：防具受击特效 ---
+            // 词缀效果：防具闪避
             const aAffix = target.equipment?.armor?.affix;
             if (aAffix && aAffix.effect === 'dodge') {
-                if (Math.random() < 0.15) { // 15% 闪避
+                if (Math.random() < 0.15) { 
                     addLog(`💨 [轻灵] ${target.name} 灵巧地闪过了攻击！`);
-                    continue; // 跳过这次伤害
+                    continue; 
                 }
             }
-            // ---------------------------
 
             const roll = d6();
             const attBonus = enemy.att + getStatusBonus(enemy, 'att');
@@ -245,12 +236,11 @@ function enemyTurn() {
                 target.hp -= 1;
                 addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
                 
-                // --- 词缀效果：荆棘反伤 ---
+                // 词缀效果：荆棘反伤
                 if (aAffix && aAffix.effect === 'thorns') {
                     enemy.hp -= 1;
                     addLog(`🌵 [荆棘] 铠甲反弹了 1 点伤害！`);
                 }
-                // -----------------------
 
             } else {
                 addLog(`${enemy.name} 扑向 ${target.name} 但被躲开了。`);
@@ -311,27 +301,16 @@ function endCombat(win) {
 
 function gainXp(char, amount) {
     char.xp += amount;
-    if (char.xp >= char.maxXp) {
-        levelUp(char);
-    }
+    if (char.xp >= char.maxXp) { levelUp(char); }
 }
 
 function levelUp(char) {
-    char.xp -= char.maxXp;
-    char.lvl++;
-    char.maxXp += 5;
+    char.xp -= char.maxXp; char.lvl++; char.maxXp += 5;
     const growth = CLASS_GROWTH[char.class] || { hp:1, mp:1, att:0, desc:"通用成长" };
-    
-    char.maxHp += growth.hp;
-    char.maxMp += growth.mp;
-    char.att += growth.att;
-    
-    const hpHeal = growth.hp + 2;
-    const mpHeal = growth.mp + 2;
-
+    char.maxHp += growth.hp; char.maxMp += growth.mp; char.att += growth.att;
+    const hpHeal = growth.hp + 2; const mpHeal = growth.mp + 2;
     char.hp = Math.min(char.maxHp, char.hp + hpHeal);
     char.mp = Math.min(char.maxMp, char.mp + mpHeal);
-
     addLog(`🆙 <b>${char.name} 升到了 Lv.${char.lvl}！</b>`);
 }
 
@@ -343,44 +322,37 @@ function tryFlee() {
         addLog(`逃跑成功！`);
         const target = randomAliveCharacter();
         if (target) { target.hp -= 1; addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); }
-        party.forEach(p => p.status = []); // 逃跑也清除状态
-        gameState = 'EXPLORING'; 
-        updateUI();
+        party.forEach(p => p.status = []); 
+        gameState = 'EXPLORING'; updateUI();
       } else {
         addLog(`逃跑失败！敌人截住了退路。`);
-        enemyTurn(); 
-        combatState.round++; 
-        combatState.actedIndices = [];
-        updateUI();
+        enemyTurn(); combatState.round++; combatState.actedIndices = []; updateUI();
       }
   });
 }
 
+// --- 事件处理 ---
 window.resolveEncounter = function(room){
   const enc = room.encounter;
   if (enc.main === 'none') { room._encounterResolved = true; return; }
 
   if (enc.main === 'monster') {
       addLog(`>>> 遭遇：${enc.main} ${enc.subtype||''} <<<`);
-      initCombat(enc.template, 'group');
-      return;
+      initCombat(enc.template, 'group'); return;
   }
   else if (enc.main === 'boss') {
       addLog(`>>> 遭遇：${enc.main} ${enc.subtype||''} <<<`);
-      initCombat(enc.template, 'boss');
-      return;
+      initCombat(enc.template, 'boss'); return;
   }
   
   if (enc.main === 'treasure') {
     addLog(`>>> 发现：${enc.subtype} <<<`);
     if (enc.subtype.includes('金币')) gainLoot('gold'); else gainLoot('item');
-    room._encounterResolved = true;
-    return;
+    room._encounterResolved = true; return;
   }
   if (enc.main === 'special') {
       addLog("这里空荡荡的。");
-      room._encounterResolved = true;
-      return;
+      room._encounterResolved = true; return;
   }
 
   if (enc.main === 'event') {

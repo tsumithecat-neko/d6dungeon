@@ -15,9 +15,6 @@ function getRoomBounds(cx, cy, wTiles, hTiles) {
 }
 
 function checkCollision(targetBounds) {
-  // 确保 dungeon 存在
-  if (typeof dungeon === 'undefined') return false;
-
   for (const id in dungeon) {
     const room = dungeon[id];
     if (room.absX === undefined || !room.shape) continue;
@@ -33,55 +30,30 @@ function checkCollision(targetBounds) {
 }
 
 // --- 房间创建 ---
-
 function createRoom(type, isConnector = false){
   let roll, shapeData;
-  
-  // 安全地获取当前房间数量，防止 dungeon 未定义报错
-  // 注意：在 startGame 初始化时 dungeon 刚被清空，这里长度为 0 是正常的
-  const currentDungeon = (typeof dungeon !== 'undefined') ? dungeon : {};
-  const roomCount = Object.keys(currentDungeon).length;
-  
-  // 探索度保底机制：如果不是起始房、不是走廊，且房间数够多，强制生成 Boss
+  const roomCount = Object.keys(dungeon).length;
   const forceBoss = (!type && !isConnector && roomCount > 12);
 
   if (type === 'start') {
     roll = 6; 
-    // 确保 ROOM_TABLE 存在
-    if (typeof ROOM_TABLE !== 'undefined' && ROOM_TABLE[6]) {
-        shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[6])); 
-        shapeData.name = "入口大厅";
-    } else {
-        console.error("ROOM_TABLE 丢失或损坏");
-        return null;
-    }
+    shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[6])); 
+    shapeData.name = "入口大厅";
   } else if (type === 'connector_h1') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.horiz_1));
   } else if (type === 'connector_h2') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.horiz_2));
   } else if (type === 'connector_v1') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.vert_1));
   } else if (type === 'connector_v2') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.vert_2));
   } else {
-    // 如果触发保底，强制 roll 19 (王座间)
-    if (forceBoss) {
-        roll = 19;
-    } else {
-        roll = d10() + d10();
-    }
+    if (forceBoss) { roll = 19; } else { roll = d10() + d10(); }
     shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[roll]));
   }
   
   const roomType = shapeData.type || 'room';
-  // 这里的 generateEncounter 必须保证已定义
   const encounter = (type === 'start' || isConnector) ? { main: 'none' } : generateEncounter(roomType);
   
   const room = {
-    id: null,
-    absX: 0, absY: 0, 
-    genRoll: roll,
-    shape: shapeData,
-    doors: {}, 
-    encounter: encounter,
-    visited: isConnector, 
-    isConnector: isConnector,
+    id: null, absX: 0, absY: 0, genRoll: roll, shape: shapeData,
+    doors: {}, encounter: encounter, visited: isConnector, isConnector: isConnector,
     _encounterResolved: isConnector 
   };
   
@@ -92,10 +64,7 @@ function createRoom(type, isConnector = false){
   return room;
 }
 
-// ... 后面的 generateEncounter 等函数保持不变 ...
-// 务必确保文件末尾包含原本的 generateEncounter, openDoor 等函数
-// (以下补全以便您直接复制替换)
-
+// --- 遭遇生成逻辑 ---
 function generateEncounter(roomType){
   if (roomType === 'boss_room') {
       const pool = MONSTER_POOLS['boss'];
@@ -104,7 +73,6 @@ function generateEncounter(roomType){
   }
 
   const r = d6();
-  
   if (r <= 2) { 
     const sub = (d6() <= 4) ? 'minion' : 'beast';
     const pool = MONSTER_POOLS[sub];
@@ -121,30 +89,19 @@ function generateEncounter(roomType){
   return { main: 'monster', subtype: 'beast', template: JSON.parse(JSON.stringify(pick)) };
 }
 
+// --- 核心交互逻辑 ---
 function openDoor(dir){
   if (gameState !== 'EXPLORING') return;
-
   const room = dungeon[playerRoomId];
-  
-  if (room.doors[dir].blocked) {
-      addLog("这个方向被废墟堵死了，无法通行。");
-      return;
-  }
+  if (room.doors[dir].blocked) { addLog("这个方向被废墟堵死了，无法通行。"); return; }
 
   let nextRoomId = room.doors[dir].leadsTo;
-
   if (room.doors[dir].closed) {
     const newRoom = openDoorFrom(playerRoomId, dir);
-    
-    if (!newRoom) {
-        updateUI(); 
-        return; 
-    }
-    
+    if (!newRoom) { updateUI(); return; }
     nextRoomId = newRoom.id;
     const targetName = newRoom.isConnector ? "未知的通道" : newRoom.shape.name;
     addLog(`你推开了 ${dir} 方向的门，进入了 ${targetName}...`);
-
   } else {
     addLog(`你移动到了 ${dir} 方向的房间。`);
   }
@@ -157,7 +114,6 @@ function openDoor(dir){
       if (window.resolveEncounter) window.resolveEncounter(currentRoom);
   }
   else if (!currentRoom.isConnector) addLog("这是一个安全的区域。");
-
   updateUI();
 }
 
@@ -184,46 +140,29 @@ function openDoorFrom(roomId, dir){
       const gapPixels = gapUnits * tileSize;
 
       let tx, ty;
-
-      if (dir === 'up') {
-          tx = sourceRoom.absX;
-          ty = sourceRoom.absY - sH/2 - gapPixels - tH/2;
-      } else if (dir === 'down') {
-          tx = sourceRoom.absX;
-          ty = sourceRoom.absY + sH/2 + gapPixels + tH/2;
-      } else if (dir === 'left') {
-          tx = sourceRoom.absX - sW/2 - gapPixels - tW/2;
-          ty = sourceRoom.absY;
-      } else if (dir === 'right') {
-          tx = sourceRoom.absX + sW/2 + gapPixels + tW/2;
-          ty = sourceRoom.absY;
-      }
+      if (dir === 'up') { tx = sourceRoom.absX; ty = sourceRoom.absY - sH/2 - gapPixels - tH/2; } 
+      else if (dir === 'down') { tx = sourceRoom.absX; ty = sourceRoom.absY + sH/2 + gapPixels + tH/2; } 
+      else if (dir === 'left') { tx = sourceRoom.absX - sW/2 - gapPixels - tW/2; ty = sourceRoom.absY; } 
+      else if (dir === 'right') { tx = sourceRoom.absX + sW/2 + gapPixels + tW/2; ty = sourceRoom.absY; }
 
       const bounds = getRoomBounds(tx, ty, targetRoom.shape.w, targetRoom.shape.h);
       if (!checkCollision(bounds)) {
-          targetRoom.absX = tx;
-          targetRoom.absY = ty;
-          return true;
+          targetRoom.absX = tx; targetRoom.absY = ty; return true;
       }
       return false;
   }
 
   if (tryPlace(prevRoom, newRoom, 0)) {
       addRoomToDungeon(newRoom, prevRoom, dir);
-      finalRoom = newRoom;
-      placementSuccess = true;
-  } 
-  
-  else {
+      finalRoom = newRoom; placementSuccess = true;
+  } else {
       const c1Type = dirConfig.connectorType + '_1';
       const connector1 = createRoom(c1Type, true);
-      
       if (tryPlace(prevRoom, connector1, 0)) {
           if (tryPlace(connector1, newRoom, 0)) {
               addRoomToDungeon(connector1, prevRoom, dir);
               addRoomToDungeon(newRoom, connector1, dir); 
-              finalRoom = newRoom; 
-              placementSuccess = true;
+              finalRoom = newRoom; placementSuccess = true;
               addLog("通道狭窄，你挤过了一条短走廊...");
           }
       }
@@ -232,39 +171,33 @@ function openDoorFrom(roomId, dir){
   if (!placementSuccess) {
       const c2Type = dirConfig.connectorType + '_2';
       const connector2 = createRoom(c2Type, true);
-
       if (tryPlace(prevRoom, connector2, 0)) {
           if (tryPlace(connector2, newRoom, 0)) {
               addRoomToDungeon(connector2, prevRoom, dir);
               addRoomToDungeon(newRoom, connector2, dir);
-              finalRoom = newRoom;
-              placementSuccess = true;
+              finalRoom = newRoom; placementSuccess = true;
               addLog("你沿着一条较长的走廊前进...");
           }
       }
   }
 
-  if (placementSuccess) {
-      return finalRoom;
-  } else {
+  if (placementSuccess) { return finalRoom; } 
+  else {
       addLog(`通往 ${dir} 的道路被坍塌的石块完全堵死了。`);
-      prevRoom.doors[dir].closed = true;
-      prevRoom.doors[dir].blocked = true; 
+      prevRoom.doors[dir].closed = true; prevRoom.doors[dir].blocked = true; 
       return null;
   }
 }
 
 function addRoomToDungeon(newRoom, fromRoom, dirFrom) {
     const newId = 'rm_' + Date.now() + '_' + Math.floor(Math.random()*9999);
-    newRoom.id = newId;
-    dungeon[newId] = newRoom;
+    newRoom.id = newId; dungeon[newId] = newRoom;
     linkRooms(fromRoom.id, newId, dirFrom);
 }
 
 function linkRooms(id1, id2, dirFrom1){
   dungeon[id1].doors[dirFrom1].leadsTo = id2;
   dungeon[id1].doors[dirFrom1].closed = false;
-  
   const back = {up:'down',down:'up',left:'right',right:'left'}[dirFrom1];
   if (dungeon[id2].doors[back]) {
       dungeon[id2].doors[back].leadsTo = id1;

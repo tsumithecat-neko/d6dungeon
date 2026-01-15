@@ -2,7 +2,7 @@
 
 const TO_HIT_TARGET = 4; // 判定标准
 
-// --- 状态与图标 ---
+// --- 状态与图标 (挂载到 window 以防访问不到) ---
 window.STATUS_ICONS = {
     poison: '☠️', // 中毒
     stun:   '💫', // 眩晕
@@ -65,6 +65,37 @@ const ARMOR_AFFIXES = [
     { name: "荆棘的", effect: "thorns", chance: 0.2, color: "#795548", desc: "反弹1点伤害", costMult: 2 },
     { name: "轻灵的", effect: "dodge", chance: 0.1, color: "#00bcd4", desc: "15%几率闪避", costMult: 2.5 }
 ];
+
+// --- 互动事件定义 ---
+const EVENT_DEFINITIONS = {
+    '陷阱': {
+        title: "⛔ 致命机关",
+        desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
+        options: [
+            { label: "✋ 尝试拆除", reqClass: "rogue", desc: "需: 盗贼。利用专业工具尝试卡住齿轮。", type: "class_check" },
+            { label: "🏃 全员闪避", desc: "全队尝试躲开毒箭。(判定: d6 >= 4)", type: "roll_check", target: 4, failDamage: 2, successMsg: "你们身手矫健，毒箭全部射在了空地上！", failMsg: "反应太慢了！几名队友被毒箭擦伤。" },
+            { label: "🛡️ 举盾硬抗", desc: "需: 战士/圣骑士。站在最前面挡下伤害。", type: "tank_damage", damage: 2, validClasses: ["warrior", "paladin"] }
+        ]
+    },
+    '祭坛': {
+        title: "🕯️ 诡异的祭坛",
+        desc: "房间中央摆放着一座散发着微光的石制祭坛，上面刻满了模糊不清的符文。",
+        options: [
+            { label: "🙏 虔诚祈祷", reqClass: ["cleric", "paladin"], desc: "需: 牧师/圣骑士。向神明祈求庇护。(恢复全体 HP)", type: "heal_party", amount: 3 },
+            { label: "🩸 献祭鲜血", desc: "献上自己的生命力以换取力量。(HP -3, 获得经验/金币)", type: "sacrifice", cost: 3 },
+            { label: "👋 转身离开", desc: "不要招惹未知的存在。", type: "leave" }
+        ]
+    },
+    '谜题': {
+        title: "🧩 远古谜题",
+        desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
+        options: [
+            { label: "✨ 解读符文", reqClass: "wizard", desc: "需: 法师。利用奥术知识直接破解。(获得宝物)", type: "auto_loot" },
+            { label: "🎲 尝试猜测", desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)", type: "gamble" },
+            { label: "💥 暴力破门", reqClass: ["warrior", "orc"], desc: "需: 战士/兽人。用蛮力砸开它！", type: "force_open" }
+        ]
+    }
+};
 
 // --- 怪物池 ---
 const MONSTER_POOLS = {
@@ -219,36 +250,6 @@ const CLASS_GROWTH = {
     cleric:  { hp: 1, mp: 2, att: 0, desc: "信仰加深 (MP+2, HP+1)" }, 
     paladin: { hp: 2, mp: 1, att: 0, desc: "圣光护体 (HP+2, MP+1)" }, 
     ranger:  { hp: 1, mp: 1, att: 1, desc: "狩猎本能 (HP+1, MP+1, 攻+1)" }
-};
-
-const EVENT_DEFINITIONS = {
-    '陷阱': {
-        title: "⛔ 致命机关",
-        desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
-        options: [
-            { label: "✋ 尝试拆除", reqClass: "rogue", desc: "需: 盗贼。利用专业工具尝试卡住齿轮。", type: "class_check" },
-            { label: "🏃 全员闪避", desc: "全队尝试躲开毒箭。(判定: d6 >= 4)", type: "roll_check", target: 4, failDamage: 2, successMsg: "你们身手矫健，毒箭全部射在了空地上！", failMsg: "反应太慢了！几名队友被毒箭擦伤。" },
-            { label: "🛡️ 举盾硬抗", desc: "需: 战士/圣骑士。站在最前面挡下伤害。", type: "tank_damage", damage: 2, validClasses: ["warrior", "paladin"] }
-        ]
-    },
-    '祭坛': {
-        title: "🕯️ 诡异的祭坛",
-        desc: "房间中央摆放着一座散发着微光的石制祭坛，上面刻满了模糊不清的符文。",
-        options: [
-            { label: "🙏 虔诚祈祷", reqClass: ["cleric", "paladin"], desc: "需: 牧师/圣骑士。向神明祈求庇护。(恢复全体 HP)", type: "heal_party", amount: 3 },
-            { label: "🩸 献祭鲜血", desc: "献上自己的生命力以换取力量。(HP -3, 获得经验/金币)", type: "sacrifice", cost: 3 },
-            { label: "👋 转身离开", desc: "不要招惹未知的存在。", type: "leave" }
-        ]
-    },
-    '谜题': {
-        title: "🧩 远古谜题",
-        desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
-        options: [
-            { label: "✨ 解读符文", reqClass: "wizard", desc: "需: 法师。利用奥术知识直接破解。(获得宝物)", type: "auto_loot" },
-            { label: "🎲 尝试猜测", desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)", type: "gamble" },
-            { label: "💥 暴力破门", reqClass: ["warrior", "orc"], desc: "需: 战士/兽人。用蛮力砸开它！", type: "force_open" }
-        ]
-    }
 };
 
 const ITEM_TYPES = {
