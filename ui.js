@@ -15,27 +15,19 @@ function updateUI() {
       ctx.fillStyle = '#f4f1ea'; 
       ctx.fillRect(0,0,canvas.width,canvas.height);
       drawGrid(ctx, canvas.width, canvas.height); 
-
       ctx.fillStyle = INK_COLOR;
       ctx.font = '30px "Special Elite", monospace';
       ctx.textAlign = 'center';
       ctx.fillText("D6 Dungeon Adventure", canvas.width/2, canvas.height/2 - 60);
-      
       ctx.font = '16px "Patrick Hand", cursive';
       ctx.fillStyle = PENCIL_COLOR;
       ctx.fillText("- 冒险者集结 -", canvas.width/2, canvas.height/2 - 20);
-      
-      renderCreation(); 
-      renderParty();    
-      renderInventory();
+      renderCreation(); renderParty(); renderInventory();
       return;
   }
   if (gameState === 'TOWN') {
-       ctx.fillStyle = '#fff3e0'; 
-       ctx.fillRect(0,0,canvas.width,canvas.height);
-       renderParty();
-       renderTownShop();
-       renderInventory();
+       ctx.fillStyle = '#fff3e0'; ctx.fillRect(0,0,canvas.width,canvas.height);
+       renderParty(); renderTownShop(); renderInventory();
        return;
    }
 
@@ -55,41 +47,25 @@ function drawMap(){
   const offX = canvas.width/2 - pRoom.absX;
   const offY = canvas.height/2 - pRoom.absY;
 
-  ctx.fillStyle = PAPER_BG;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = PAPER_BG; ctx.fillRect(0,0,canvas.width,canvas.height);
   drawGrid(ctx, canvas.width, canvas.height);
 
   Object.keys(dungeon).forEach(k => {
     const r = dungeon[k];
-    const cx = r.absX + offX;
-    const cy = r.absY + offY;
-
+    const cx = r.absX + offX; const cy = r.absY + offY;
     if(cx < -300 || cx > canvas.width+300 || cy < -300 || cy > canvas.height+300) return;
-
     const w = (r.shape.w || 3) * window.TILE_SIZE;
     const h = (r.shape.h || 3) * window.TILE_SIZE;
     const shapeType = r.shape.shape || 'rect';
 
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = INK_COLOR;
-    ctx.lineWidth = 2.5;
-
-    if (k === playerRoomId) {
-        ctx.strokeStyle = HIGHLIGHT_COLOR;
-        ctx.lineWidth = 3;
-    }
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = INK_COLOR; ctx.lineWidth = 2.5;
+    if (k === playerRoomId) { ctx.strokeStyle = HIGHLIGHT_COLOR; ctx.lineWidth = 3; }
     if (r.isConnector) ctx.lineWidth = 1; 
 
-    ctx.beginPath();
-    drawRoomShapePath(ctx, cx, cy, w, h, shapeType);
-    ctx.fill();
-    ctx.stroke();
-
+    ctx.beginPath(); drawRoomShapePath(ctx, cx, cy, w, h, shapeType); ctx.fill(); ctx.stroke();
     if (r.shape.type !== 'corridor') drawDoors(ctx, r, cx, cy, w, h);
-
     if (r.encounter && r.encounter.main !== 'none'){
-      ctx.fillStyle = INK_COLOR; 
-      ctx.font = '20px "Segoe UI Emoji", serif';
+      ctx.fillStyle = INK_COLOR; ctx.font = '20px "Segoe UI Emoji", serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       let icon = '';
       if(r.encounter.main=='monster') icon='💀';
@@ -102,8 +78,7 @@ function drawMap(){
 }
 
 function drawGrid(ctx, w, h) {
-    ctx.strokeStyle = GRID_COLOR;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = 0.5; x < w; x += window.TILE_SIZE) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
     for (let y = 0.5; y < h; y += window.TILE_SIZE) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
@@ -115,26 +90,19 @@ function drawRoomShapePath(ctx, cx, cy, w, h, type) {
     else if (type === 'circle') { ctx.arc(cx, cy, Math.min(w,h)/2, 0, Math.PI * 2); } 
     else if (type === 'cross') {
         const thirdW = w/3; const thirdH = h/3;
-        ctx.rect(cx - w/2, cy - thirdH/2, w, thirdH); 
-        ctx.rect(cx - thirdW/2, cy - h/2, thirdW, h); 
+        ctx.rect(cx - w/2, cy - thirdH/2, w, thirdH); ctx.rect(cx - thirdW/2, cy - h/2, thirdW, h); 
     }
     else if (type === 'diamond') {
-        ctx.moveTo(cx, cy - h/2); ctx.lineTo(cx + w/2, cy);
-        ctx.lineTo(cx, cy + h/2); ctx.lineTo(cx - w/2, cy);
-        ctx.closePath();
+        ctx.moveTo(cx, cy - h/2); ctx.lineTo(cx + w/2, cy); ctx.lineTo(cx, cy + h/2); ctx.lineTo(cx - w/2, cy); ctx.closePath();
     }
     else if (type === 'L_up_right') {
         const halfW = w/2; const halfH = h/2;
-        ctx.rect(cx - halfW, cy - halfH, halfW, h); 
-        ctx.rect(cx - halfW, cy, w, halfH); 
+        ctx.rect(cx - halfW, cy - halfH, halfW, h); ctx.rect(cx - halfW, cy, w, halfH); 
     }
     else if (type === 'oct') {
         const d = w/4; const x = cx - w/2, y = cy - h/2;
-        ctx.moveTo(x + d, y); ctx.lineTo(x + w - d, y);
-        ctx.lineTo(x + w, y + d); ctx.lineTo(x + w, y + h - d);
-        ctx.lineTo(x + w - d, y + h); ctx.lineTo(x + d, y + h);
-        ctx.lineTo(x, y + h - d); ctx.lineTo(x, y + d);
-        ctx.closePath();
+        ctx.moveTo(x + d, y); ctx.lineTo(x + w - d, y); ctx.lineTo(x + w, y + d); ctx.lineTo(x + w, y + h - d);
+        ctx.lineTo(x + w - d, y + h); ctx.lineTo(x + d, y + h); ctx.lineTo(x, y + h - d); ctx.lineTo(x, y + d); ctx.closePath();
     }
     else { ctx.rect(cx - w/2, cy - h/2, w, h); }
 }
@@ -142,39 +110,28 @@ function drawRoomShapePath(ctx, cx, cy, w, h, type) {
 function drawDoors(ctx, room, cx, cy, w, h) {
     ['up','right','down','left'].forEach(dir => {
       const door = room.doors[dir];
-      let dx=cx, dy=cy;
-      const dw = 10, dh = 10;
+      let dx=cx, dy=cy; const dw = 10, dh = 10;
       if(dir=='up') dy -= h/2; if(dir=='down') dy += h/2;
       if(dir=='left') dx -= w/2; if(dir=='right') dx += w/2;
-
       ctx.fillStyle = '#fff'; ctx.fillRect(dx-dw/2, dy-dh/2, dw, dh);
-
       if (door.leadsTo) {
-          ctx.strokeStyle = INK_COLOR; ctx.lineWidth = 1.5;
-          ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh);
+          ctx.strokeStyle = INK_COLOR; ctx.lineWidth = 1.5; ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh);
       } else if (door.blocked) {
-          ctx.fillStyle = HIGHLIGHT_COLOR;
-          ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle';
-          ctx.fillText('X', dx, dy);
+          ctx.fillStyle = HIGHLIGHT_COLOR; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline='middle'; ctx.fillText('X', dx, dy);
       } else if (door.closed) {
-          ctx.strokeStyle = PENCIL_COLOR; ctx.setLineDash([3, 3]);
-          ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh); ctx.setLineDash([]);
+          ctx.strokeStyle = PENCIL_COLOR; ctx.setLineDash([3, 3]); ctx.strokeRect(dx-dw/2, dy-dh/2, dw, dh); ctx.setLineDash([]);
       }
     });
 }
 
 function renderParty(){
-  const list = document.getElementById('characters'); 
-  list.innerHTML='';
+  const list = document.getElementById('characters'); list.innerHTML='';
   party.forEach(p=>{
     const li = document.createElement('li');
-    li.style.borderBottom = "1px dashed #ccc"; 
-    li.style.paddingBottom = "6px"; li.style.marginBottom = "6px";
+    li.style.borderBottom = "1px dashed #ccc"; li.style.paddingBottom = "6px"; li.style.marginBottom = "6px";
     
-    const maxHp = p.maxHp || p.hp || 1; 
-    const maxMp = p.maxMp || p.mp || 1;
-    if (!p.maxXp) p.maxXp = p.lvl * 5 + 5; 
-    if (p.xp === undefined) p.xp = 0;
+    const maxHp = p.maxHp || p.hp || 1; const maxMp = p.maxMp || p.mp || 1;
+    if (!p.maxXp) p.maxXp = p.lvl * 5 + 5; if (p.xp === undefined) p.xp = 0;
 
     const hpBars = Math.ceil(p.hp / 2); 
     const hpStr = '▮'.repeat(Math.max(0, hpBars)).padEnd(Math.ceil(maxHp/2), '▯');
@@ -185,11 +142,18 @@ function renderParty(){
     const a = p.equipment?.armor ? `🛡️${p.equipment.armor.name}` : '👕布衣';
     const xpPct = (p.xp / p.maxXp) * 100;
 
+    // --- 状态图标 ---
+    let statusHtml = '';
+    if (p.status && p.status.length > 0) {
+        statusHtml = p.status.map(s => STATUS_ICONS[s.type]).join(' ');
+    }
+
     li.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:baseline;">
           <div style="font-weight:bold; font-size:1.1em">
              ${p.name} <span style="font-size:0.7em; background:#222; color:#fff; padding:1px 4px; border-radius:3px">Lv.${p.lvl}</span>
              <span style="font-size:0.8em; font-weight:normal; color:#555">(${p.raceName} ${p.className})</span>
+             <span style="margin-left:5px">${statusHtml}</span>
           </div>
       </div>
       <div style="font-size:0.85em; color:#555; margin:2px 0;">${w} | ${a}</div>
@@ -214,7 +178,6 @@ function renderParty(){
 function renderCreation() {
     const container = document.getElementById('controls');
     container.innerHTML = '';
-    
     const header = document.createElement('h3');
     header.style.color = HIGHLIGHT_COLOR; header.style.marginTop = '0';
     header.style.fontFamily = '"Special Elite", monospace';
@@ -243,79 +206,44 @@ function renderCreation() {
     }
 
     const form = document.createElement('div');
-    form.style.background = "#fff"; form.style.padding = "15px";
-    form.style.border = "2px solid #222"; form.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.1)";
-    
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text'; nameInput.placeholder = '请输入英雄大名...';
+    form.style.background = "#fff"; form.style.padding = "15px"; form.style.border = "2px solid #222"; form.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.1)";
+    const nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.placeholder = '请输入英雄大名...';
     nameInput.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:'Patrick Hand', cursive; font-size:1.1em; color:#000; box-sizing: border-box;";
     form.innerHTML += "<b>1. 姓名:</b>"; form.appendChild(nameInput);
-
-    const raceSelect = document.createElement('select');
-    raceSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
-    Object.keys(RACES).forEach(key => {
-        const r = RACES[key];
-        const opt = document.createElement('option'); opt.value = key; opt.textContent = `${r.name} (${r.desc})`;
-        raceSelect.appendChild(opt);
-    });
+    const raceSelect = document.createElement('select'); raceSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
+    Object.keys(RACES).forEach(key => { const r = RACES[key]; const opt = document.createElement('option'); opt.value = key; opt.textContent = `${r.name} (${r.desc})`; raceSelect.appendChild(opt); });
     form.innerHTML += "<b>2. 种族:</b>"; form.appendChild(raceSelect);
-
-    const classSelect = document.createElement('select');
-    classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
-    Object.keys(CLASS_BASE_STATS).forEach(key => {
-        const c = CLASS_BASE_STATS[key];
-        const opt = document.createElement('option'); opt.value = key; opt.textContent = `${c.name} - ${c.desc}`;
-        classSelect.appendChild(opt);
-    });
+    const classSelect = document.createElement('select'); classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
+    Object.keys(CLASS_BASE_STATS).forEach(key => { const c = CLASS_BASE_STATS[key]; const opt = document.createElement('option'); opt.value = key; opt.textContent = `${c.name} - ${c.desc}`; classSelect.appendChild(opt); });
     form.innerHTML += "<b>3. 职业:</b>"; form.appendChild(classSelect);
-    
-    const addBtn = document.createElement('button');
-    addBtn.textContent = "➕ 登记角色";
-    addBtn.style.cssText = "width:100%; padding:10px; background:#eee; color:#000; border:2px solid #000; cursor:pointer; font-weight:bold";
-    addBtn.onclick = () => {
-        const nameVal = nameInput.value; const rKey = raceSelect.value; const cKey = classSelect.value;
-        if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); 
-    };
-    form.appendChild(addBtn);
-    container.appendChild(form);
+    const addBtn = document.createElement('button'); addBtn.textContent = "➕ 登记角色"; addBtn.style.cssText = "width:100%; padding:10px; background:#eee; color:#000; border:2px solid #000; cursor:pointer; font-weight:bold";
+    addBtn.onclick = () => { const nameVal = nameInput.value; const rKey = raceSelect.value; const cKey = classSelect.value; if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); };
+    form.appendChild(addBtn); container.appendChild(form);
 }
 
 function renderTownShop() {
-    const container = document.getElementById('controls');
-    container.innerHTML = '<h3>🏰 休憩城镇</h3>';
-    
-    const nextBtn = document.createElement('button');
-    nextBtn.innerHTML = `🔥 <b>挑战下一周目 (Lv.${window.worldLevel + 1})</b>`;
+    const container = document.getElementById('controls'); container.innerHTML = '<h3>🏰 休憩城镇</h3>';
+    const nextBtn = document.createElement('button'); nextBtn.innerHTML = `🔥 <b>挑战下一周目 (Lv.${window.worldLevel + 1})</b>`;
     nextBtn.style.cssText = "width:100%; padding:15px; background:#d84315; color:white; margin-bottom:20px; font-weight:bold; cursor:pointer";
-    nextBtn.onclick = () => window.startNextRun();
-    container.appendChild(nextBtn);
+    nextBtn.onclick = () => window.startNextRun(); container.appendChild(nextBtn);
     
-    const shopDiv = document.createElement('div');
-    shopDiv.style.cssText = "background:#fff; padding:10px; border:2px solid #555;";
-    shopDiv.innerHTML = "<h4>🛒 杂货铺</h4>";
-    
+    const shopDiv = document.createElement('div'); shopDiv.style.cssText = "background:#fff; padding:10px; border:2px solid #555;"; shopDiv.innerHTML = "<h4>🛒 杂货铺</h4>";
     window.shopStock.forEach((item, idx) => {
-        const row = document.createElement('div');
-        row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #ccc; padding:4px 0";
+        const row = document.createElement('div'); row.style.cssText = "display:flex; justify-content:space-between; align-items:center; margin:5px 0; border-bottom:1px dotted #ccc; padding:4px 0";
         let desc = item.type === 'weapon' ? `攻+${item.att}` : (item.type==='armor'?`HP+${item.hpMax}`:item.desc);
         row.innerHTML = `<span><b>${item.name}</b> <small>${desc}</small></span>`;
-        
-        const buyBtn = document.createElement('button');
-        buyBtn.textContent = `${item.cost} G`;
-        buyBtn.style.fontSize = "0.9em"; buyBtn.onclick = () => window.buyItem(idx);
+        const buyBtn = document.createElement('button'); buyBtn.textContent = `${item.cost} G`; buyBtn.style.fontSize = "0.9em"; buyBtn.onclick = () => window.buyItem(idx);
         if (inventory.gold < item.cost) { buyBtn.disabled = true; buyBtn.style.opacity = 0.6; }
         row.appendChild(buyBtn); shopDiv.appendChild(row);
     });
     container.appendChild(shopDiv);
-    
     const hr = document.createElement('hr'); hr.style.cssText = "margin: 15px 0; border: 0; border-top: 1px dashed #ccc;"; container.appendChild(hr);
     const systemBtn = document.createElement('button'); systemBtn.innerHTML = "💾 系统 / 存读档"; systemBtn.style.width = "100%"; systemBtn.fontSize = "0.9em";
     systemBtn.onclick = () => showSaveLoadMenu(); container.appendChild(systemBtn);
 }
 
 function renderControls(){
-  const container = document.getElementById('controls');
-  container.innerHTML = ''; 
+  const container = document.getElementById('controls'); container.innerHTML = ''; 
 
   if (gameState === 'EXPLORING') {
     const searchBtn = document.createElement('button');
@@ -324,25 +252,18 @@ function renderControls(){
     else { searchBtn.textContent = '🔍 搜寻当前房间'; searchBtn.onclick = () => { if(window.performSearch) window.performSearch(); }; }
     searchBtn.style.width = '100%'; container.appendChild(searchBtn);
 
-    const btn = document.createElement('button');
-    btn.textContent = '🎲 随机方向开门'; btn.style.width = '100%';
+    const btn = document.createElement('button'); btn.textContent = '🎲 随机方向开门'; btn.style.width = '100%';
     btn.onclick = () => { 
         const closed = Object.keys(room.doors).filter(d => room.doors[d].closed && !room.doors[d].blocked);
-        if(closed.length) openDoor(closed[Math.floor(Math.random()*closed.length)]);
-        else addLog("没有可以打开的门了。");
+        if(closed.length) openDoor(closed[Math.floor(Math.random()*closed.length)]); else addLog("没有可以打开的门了。");
     };
     container.appendChild(btn);
 
     const doorsDiv = document.createElement('div');
     ['up','right','down','left'].forEach(dir=>{
-        const door = room.doors[dir];
-        const dBtn = document.createElement('button');
-        dBtn.style.marginRight = '5px';
-        
-        let statusText = '';
-        if(door.leadsTo) statusText = '(通)'; else if(door.blocked) statusText = '(堵)'; else if(door.closed) statusText = '(闭)';
+        const door = room.doors[dir]; const dBtn = document.createElement('button'); dBtn.style.marginRight = '5px';
+        let statusText = ''; if(door.leadsTo) statusText = '(通)'; else if(door.blocked) statusText = '(堵)'; else if(door.closed) statusText = '(闭)';
         dBtn.innerHTML = `${arrow(dir)} ${dir.toUpperCase()} ${statusText}`;
-        
         if(door.leadsTo) dBtn.style.borderStyle = "dashed";
         if(door.blocked) { dBtn.disabled = true; dBtn.style.textDecoration = "line-through"; dBtn.style.opacity=0.5; }
         else { dBtn.onclick = () => openDoor(dir); }
@@ -350,54 +271,38 @@ function renderControls(){
     });
     container.appendChild(doorsDiv);
 
-  } 
-  // --- 新增：事件状态渲染 ---
-  else if (gameState === 'EVENT') {
+  } else if (gameState === 'EVENT') {
       const eventPanel = document.createElement('div');
-      eventPanel.style.border = `2px dashed ${HIGHLIGHT_COLOR}`;
-      eventPanel.style.padding = '10px';
-      eventPanel.style.background = '#fff8e1'; // 淡淡的黄色背景
-
-      const title = document.createElement('h3');
-      title.innerText = activeEvent.title;
-      title.style.marginTop = '0';
-      title.style.color = HIGHLIGHT_COLOR;
-      eventPanel.appendChild(title);
-
-      const desc = document.createElement('p');
-      desc.innerText = activeEvent.desc;
-      desc.style.fontStyle = 'italic';
-      desc.style.fontSize = '0.95em';
-      eventPanel.appendChild(desc);
-
+      eventPanel.style.border = `2px dashed ${HIGHLIGHT_COLOR}`; eventPanel.style.padding = '10px'; eventPanel.style.background = '#fff8e1';
+      const title = document.createElement('h3'); title.innerText = activeEvent.title; title.style.marginTop = '0'; title.style.color = HIGHLIGHT_COLOR; eventPanel.appendChild(title);
+      const desc = document.createElement('p'); desc.innerText = activeEvent.desc; desc.style.fontStyle = 'italic'; desc.style.fontSize = '0.95em'; eventPanel.appendChild(desc);
       activeEvent.options.forEach((opt, idx) => {
-          const btn = document.createElement('button');
-          btn.style.width = '100%';
-          btn.style.textAlign = 'left';
-          btn.style.marginBottom = '8px';
-          
+          const btn = document.createElement('button'); btn.style.width = '100%'; btn.style.textAlign = 'left'; btn.style.marginBottom = '8px';
           btn.innerHTML = `<b>${opt.label}</b><br><span style="font-size:0.8em; color:#555">${opt.desc}</span>`;
-          
-          // 检查职业条件来变灰按钮
           if (opt.reqClass) {
               const reqs = Array.isArray(opt.reqClass) ? opt.reqClass : [opt.reqClass];
               const hasClass = party.some(p => reqs.includes(p.class || p.race) && p.hp > 0);
-              if (!hasClass) {
-                  btn.disabled = true;
-                  btn.style.opacity = 0.5;
-                  btn.title = "缺乏相应的职业角色";
-              }
+              if (!hasClass) { btn.disabled = true; btn.style.opacity = 0.5; btn.title = "缺乏相应的职业角色"; }
           }
-
-          btn.onclick = () => window.handleEventChoice(idx);
-          eventPanel.appendChild(btn);
+          btn.onclick = () => window.handleEventChoice(idx); eventPanel.appendChild(btn);
       });
-
       container.appendChild(eventPanel);
-  }
-  // -------------------------
-  else if (gameState === 'COMBAT') {
+
+  } else if (gameState === 'COMBAT') {
     const combatPanel = document.createElement('div');
+    
+    // --- 显示敌方状态 ---
+    const enemy = combatState.enemy;
+    let enemyStatusHtml = '';
+    if (enemy.status && enemy.status.length > 0) {
+        enemyStatusHtml = enemy.status.map(s => STATUS_ICONS[s.type]).join(' ');
+    }
+    const enemyInfo = document.createElement('div');
+    enemyInfo.style.cssText = "margin-bottom:10px; text-align:center; font-weight:bold; color:#b71c1c";
+    enemyInfo.innerHTML = `🆚 敌人: ${enemy.name} <span style="font-size:1.2em">${enemyStatusHtml}</span>`;
+    combatPanel.appendChild(enemyInfo);
+    // ------------------
+
     const remainingActs = party.filter((p, idx) => p.hp > 0 && !combatState.actedIndices.includes(idx)).length;
     
     const atkBtn = document.createElement('button');
@@ -417,20 +322,27 @@ function renderControls(){
 
     party.forEach((p, idx) => {
         if (p.hp <= 0) return; 
-        const skill = CLASS_SKILLS[p.class];
-        if (!skill) return;
+        const skill = CLASS_SKILLS[p.class]; if (!skill) return;
         const hasActed = combatState.actedIndices.includes(idx);
+        
+        // --- 检查眩晕 ---
+        const isStunned = p.status && p.status.some(s => s.type === 'stun');
+        // ---------------
+
         const sBtn = document.createElement('button');
         sBtn.innerHTML = `<b>${p.name}</b><br><small>${skill.name}</small>`;
         sBtn.style.fontSize = "0.9em";
-        if (hasActed || p.mp < skill.cost) { sBtn.disabled = true; sBtn.style.opacity = 0.5; } 
+        
+        if (hasActed || p.mp < skill.cost || isStunned) { 
+            sBtn.disabled = true; sBtn.style.opacity = 0.5; 
+            if(isStunned) sBtn.innerHTML += " (晕)";
+        } 
         else { sBtn.onclick = () => useSkill(idx, skill); }
         skillsDiv.appendChild(sBtn);
     });
     combatPanel.appendChild(skillsDiv);
     
-    const fleeBtn = document.createElement('button');
-    fleeBtn.innerHTML = "🏃 试图逃跑"; fleeBtn.style.width = '100%'; fleeBtn.onclick = tryFlee;
+    const fleeBtn = document.createElement('button'); fleeBtn.innerHTML = "🏃 试图逃跑"; fleeBtn.style.width = '100%'; fleeBtn.onclick = tryFlee;
     combatPanel.appendChild(fleeBtn);
     container.appendChild(combatPanel);
   } 
@@ -495,18 +407,15 @@ function showTargetSelection(itemIndex) {
         else { btn.onclick = () => { overlay.classList.remove('active'); if (window.confirmUseItem) window.confirmUseItem(itemIndex, idx); }; }
         container.appendChild(btn);
     });
-
     const cancelBtn = document.createElement('button'); cancelBtn.textContent = "取消";
     cancelBtn.style.cssText = "display:block; width:100px; margin:20px auto 0; padding:8px; border:1px solid #555; color:#555";
-    cancelBtn.onclick = () => overlay.classList.remove('active');
-    container.appendChild(cancelBtn);
+    cancelBtn.onclick = () => overlay.classList.remove('active'); container.appendChild(cancelBtn);
 }
 
 function rollDiceAnim(diceRequests, callback) {
     const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
     overlay.classList.add('active'); container.innerHTML = '';
     const diceElements = [];
-
     diceRequests.forEach(req => {
         const wrapper = document.createElement('div'); wrapper.style.textAlign = 'center';
         const dieEl = document.createElement('div'); dieEl.className = 'die rolling'; 
@@ -516,16 +425,12 @@ function rollDiceAnim(diceRequests, callback) {
         wrapper.appendChild(dieEl); wrapper.appendChild(label); container.appendChild(wrapper);
         diceElements.push(dieEl);
     });
-
     setTimeout(() => {
         const results = {};
         diceElements.forEach(el => {
-            el.classList.remove('rolling');
-            const val = Math.floor(Math.random() * 6) + 1;
-            const reqId = el.dataset.id;
-            results[reqId] = val; 
-            if (val === 6) el.classList.add('crit');
-            el.dataset.val = val; 
+            el.classList.remove('rolling'); const val = Math.floor(Math.random() * 6) + 1;
+            const reqId = el.dataset.id; results[reqId] = val; 
+            if (val === 6) el.classList.add('crit'); el.dataset.val = val; 
             let pipsHtml = ''; for(let i=0; i<val; i++) pipsHtml += '<div class="pip"></div>';
             el.innerHTML = pipsHtml;
         });
@@ -536,14 +441,11 @@ function rollDiceAnim(diceRequests, callback) {
 function showSaveLoadMenu() {
     const overlay = document.getElementById('diceOverlay'); const container = document.getElementById('diceContainer');
     overlay.classList.add('active'); container.innerHTML = ''; 
-    const title = document.createElement('h2');
-    title.textContent = "💾 灵魂记录 (存/读档)"; title.style.width = "100%"; title.style.textAlign = "center"; title.style.fontFamily = '"Special Elite", monospace';
+    const title = document.createElement('h2'); title.textContent = "💾 灵魂记录 (存/读档)"; title.style.width = "100%"; title.style.textAlign = "center"; title.style.fontFamily = '"Special Elite", monospace';
     container.appendChild(title);
 
-    const exportBox = document.createElement('div');
-    exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px dashed #555; background: #fff;";
-    const exportBtn = document.createElement('button');
-    exportBtn.textContent = "📤 生成当前存档代码"; exportBtn.style.width = "100%";
+    const exportBox = document.createElement('div'); exportBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px dashed #555; background: #fff;";
+    const exportBtn = document.createElement('button'); exportBtn.textContent = "📤 生成当前存档代码"; exportBtn.style.width = "100%";
     exportBtn.onclick = () => {
         const code = window.exportSaveGame ? window.exportSaveGame() : "Error";
         if(code) {
@@ -552,22 +454,14 @@ function showSaveLoadMenu() {
         }
     };
     exportBox.appendChild(exportBtn);
+    const codeArea = document.createElement('textarea'); codeArea.placeholder = "点击上方按钮生成存档代码，然后复制保存..."; codeArea.style.cssText = "width: 100%; height: 80px; margin-top: 10px; font-size: 12px; resize: none; border: 1px solid #ccc;";
+    exportBox.appendChild(codeArea); container.appendChild(exportBox);
 
-    const codeArea = document.createElement('textarea');
-    codeArea.placeholder = "点击上方按钮生成存档代码，然后复制保存...";
-    codeArea.style.cssText = "width: 100%; height: 80px; margin-top: 10px; font-size: 12px; resize: none; border: 1px solid #ccc;";
-    exportBox.appendChild(codeArea);
-    container.appendChild(exportBox);
-
-    const importBox = document.createElement('div');
-    importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px solid #2e7d32; background: #e8f5e9;";
-    const importInput = document.createElement('textarea');
-    importInput.placeholder = "在此粘贴存档代码以恢复进度...";
-    importInput.style.cssText = "width: 100%; height: 60px; margin-bottom: 10px; font-size: 12px; resize: none; border: 1px solid #2e7d32;";
+    const importBox = document.createElement('div'); importBox.style.cssText = "width: 100%; margin-bottom: 20px; padding: 10px; border: 2px solid #2e7d32; background: #e8f5e9;";
+    const importInput = document.createElement('textarea'); importInput.placeholder = "在此粘贴存档代码以恢复进度..."; importInput.style.cssText = "width: 100%; height: 60px; margin-bottom: 10px; font-size: 12px; resize: none; border: 1px solid #2e7d32;";
     importBox.appendChild(importInput);
 
-    const importBtn = document.createElement('button');
-    importBtn.textContent = "📥 读取存档"; importBtn.style.cssText = "width: 100%; background: #2e7d32; color: white;";
+    const importBtn = document.createElement('button'); importBtn.textContent = "📥 读取存档"; importBtn.style.cssText = "width: 100%; background: #2e7d32; color: white;";
     importBtn.onclick = () => {
         const code = importInput.value.trim(); if (!code) return;
         if (window.confirm("确定要读取存档吗？当前未保存的进度将丢失。")) {
@@ -575,6 +469,5 @@ function showSaveLoadMenu() {
         }
     };
     importBox.appendChild(importBtn); container.appendChild(importBox);
-
     const closeBtn = document.createElement('button'); closeBtn.textContent = "关闭"; closeBtn.onclick = () => overlay.classList.remove('active'); container.appendChild(closeBtn);
 }

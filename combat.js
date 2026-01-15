@@ -8,7 +8,11 @@ function initCombat(template, type) {
   const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
   enemyData.hp = Math.floor(enemyData.hp * multiplier);
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
-  
+  enemyData.status = []; // 初始化敌人状态
+
+  // 确保队伍状态被初始化 (防止旧存档报错)
+  party.forEach(p => { if(!p.status) p.status = []; });
+
   if (type === 'group') {
     if (!enemyData.count) enemyData.count = 1;
     addLog(`⚔️ 敌人出现 (Lv.${window.worldLevel})！${enemyData.name} x${enemyData.count} (ATK: ${enemyData.att})`);
@@ -20,17 +24,73 @@ function initCombat(template, type) {
   updateUI();
 }
 
+// --- 状态与辅助函数 ---
+
+function applyStatus(target, type, duration) {
+    if (!target.status) target.status = [];
+    const existing = target.status.find(s => s.type === type);
+    if (existing) {
+        existing.duration = Math.max(existing.duration, duration); // 刷新持续时间
+        addLog(`> ${target.name} 的 [${STATUS_ICONS[type]}] 持续时间刷新了。`);
+    } else {
+        target.status.push({ type: type, duration: duration });
+        addLog(`> ${target.name} 被施加了 [${STATUS_ICONS[type]}] 状态！`);
+    }
+}
+
+function processStatusEffects(char) {
+    if (!char.status || char.status.length === 0) return true; // true = 可以行动
+
+    let canAct = true;
+    // 倒序遍历以便删除
+    for (let i = char.status.length - 1; i >= 0; i--) {
+        const s = char.status[i];
+        
+        // 效果结算
+        if (s.type === 'poison') {
+            char.hp -= 1;
+            addLog(`${STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
+        } else if (s.type === 'regen') {
+            char.hp = Math.min(char.maxHp || 99, char.hp + 1);
+            addLog(`${STATUS_ICONS.regen} ${char.name} 恢复了生命 (+1 HP)。`);
+        } else if (s.type === 'stun') {
+            canAct = false;
+            addLog(`${STATUS_ICONS.stun} ${char.name} 眩晕中，无法行动！`);
+        }
+
+        s.duration--;
+        if (s.duration <= 0) {
+            char.status.splice(i, 1);
+            addLog(`> ${char.name} 的 [${STATUS_ICONS[s.type]}] 效果结束了。`);
+        }
+    }
+    return canAct;
+}
+
+function getStatusBonus(char, stat) {
+    if (!char.status) return 0;
+    let bonus = 0;
+    char.status.forEach(s => {
+        if (stat === 'att') {
+            if (s.type === 'rage') bonus += 2;
+            if (s.type === 'weak') bonus -= 2;
+        }
+    });
+    return bonus;
+}
+
+// ---------------------
+
 function useSkill(charIndex, skillData) {
   if (gameState !== 'COMBAT' || !combatState.active) return;
-  if (combatState.actedIndices.includes(charIndex)) {
-      addLog("该角色本回合已经行动过了！");
-      return;
-  }
+  if (combatState.actedIndices.includes(charIndex)) return;
+  
   const user = party[charIndex];
-  if (user.mp < skillData.cost) {
-      addLog(`${user.name} MP不足！`);
-      return;
-  }
+  // 技能前先检查眩晕 (虽然 fightRound 会检查，但按钮点击也要防)
+  const isStunned = user.status && user.status.some(s => s.type === 'stun');
+  if(isStunned) { addLog("你处于眩晕状态，无法使用技能！"); return; }
+
+  if (user.mp < skillData.cost) { addLog(`${user.name} MP不足！`); return; }
 
   user.mp -= skillData.cost;
   combatState.actedIndices.push(charIndex); 
@@ -49,15 +109,29 @@ function fightRound() {
   const requests = [];
   const activePartyMembers = []; 
 
+  // 1. 玩家回合开始：结算状态
+  addLog(`--- 第 ${combatState.round} 回合 ---`);
+  
+  // 先结算所有人的 DoT，如果有死掉的就不能动了
   party.forEach((p, index) => {
-      if (p.hp > 0 && !combatState.actedIndices.includes(index)) {
+      if (p.hp <= 0) return;
+      // 如果本回合已经手动行动过(如用了技能)，就不再加入普攻队列
+      if (combatState.actedIndices.includes(index)) return;
+
+      const canAct = processStatusEffects(p);
+      if (p.hp > 0 && canAct) {
           requests.push({ label: p.name, id: index });
           activePartyMembers.push(p);
+      } else if (!canAct) {
+          combatState.actedIndices.push(index); // 眩晕算作已行动
       }
   });
 
   const finishTurn = () => {
       if (checkWin()) return;
+      // 检查是否全灭 (可能被毒死)
+      if (!randomAliveCharacter()) { endCombat(false); return; }
+      
       enemyTurn();
       combatState.round++;
       combatState.actedIndices = []; 
@@ -65,7 +139,7 @@ function fightRound() {
   };
 
   if (requests.length === 0) {
-      addLog("--- 所有人已完成行动 ---");
+      // 可能所有人眩晕或者用了技能
       finishTurn();
       return;
   }
@@ -79,15 +153,15 @@ function fightRound() {
           const roll = results[idx];
           
           if (roll === 6) {
-              addLog(`🎲 <b>${p.name} 骰出了 6！获得再动机会！</b>`);
+              addLog(`🎲 <b>${p.name} 骰出了 6！气势如虹！(MP+1)</b>`);
               if (p.mp < p.maxMp) p.mp++;
-          } else {
-              combatState.actedIndices.push(idx);
           }
+          combatState.actedIndices.push(idx);
 
           const bonus = (p.class === 'warrior') ? p.lvl : 0; 
           const weaponAtt = p.equipment?.weapon?.att || 0;
-          const total = roll + p.att + weaponAtt + bonus;
+          const statusBonus = getStatusBonus(p, 'att');
+          const total = roll + p.att + weaponAtt + bonus + statusBonus;
           
           const rollIcon = logDieIcon(roll);
           
@@ -95,10 +169,10 @@ function fightRound() {
               hits++;
               if (combatState.type === 'group') {
                   enemy.count--;
-                  addLog(`${p.name} ${rollIcon} 命中！击杀敌人。`);
+                  addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 击杀敌人。`);
               } else {
                   enemy.hp--;
-                  addLog(`${p.name} ${rollIcon} 命中！造成伤害。`);
+                  addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 造成伤害。`);
               }
           } else {
               addLog(`${p.name} ${rollIcon} 攻击偏斜了。`);
@@ -106,12 +180,59 @@ function fightRound() {
       });
       
       if (hits === 0) addLog("普攻未能造成有效打击！");
-      if (checkWin()) return; 
 
-      const remainingActs = party.filter((p, i) => p.hp > 0 && !combatState.actedIndices.includes(i)).length;
-      if (remainingActs === 0) finishTurn();
-      else updateUI();
+      finishTurn(); // 只有当 rollDiceAnim 完成后才结束回合
   });
+}
+
+function enemyTurn() {
+    const enemy = combatState.enemy;
+    
+    // 敌人状态结算
+    const canAct = processStatusEffects(enemy);
+    if (enemy.hp <= 0) { endCombat(true); return; } // 毒死 Boss
+    if (!canAct) return; // 眩晕跳过
+
+    addLog(`敌人反击...`);
+    let attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2; 
+
+    for (let i = 0; i < attacks; i++) {
+        const target = randomAliveCharacter();
+        if (!target) break; 
+        
+        // --- 敌人 AI：尝试使用技能 ---
+        let skillUsed = false;
+        if (enemy.skills && enemy.skills.length > 0) {
+            // 30% 几率尝试用技能 (如果是 Boss，几率更高)
+            const skillChance = (combatState.type === 'boss') ? 0.5 : 0.3;
+            if (Math.random() < skillChance) {
+                const skillKey = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
+                const skillDef = MONSTER_SKILLS[skillKey];
+                
+                // 技能自身的触发判定
+                if (skillDef && Math.random() < (skillDef.rate || 1.0)) {
+                    addLog(`⚠️ <b>${enemy.name} 使用了 [${skillDef.name}]！</b>`);
+                    const finalTarget = skillDef.targetSelf ? enemy : target;
+                    const msg = skillDef.perform(enemy, finalTarget);
+                    addLog(msg);
+                    skillUsed = true;
+                }
+            }
+        }
+        // ---------------------------
+
+        if (!skillUsed) {
+            const roll = d6();
+            const attBonus = enemy.att + getStatusBonus(enemy, 'att');
+            if (roll + attBonus >= TO_HIT_TARGET) {
+                target.hp -= 1;
+                addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
+            } else {
+                addLog(`${enemy.name} 扑向 ${target.name} 但被躲开了。`);
+            }
+        }
+    }
+    if (!randomAliveCharacter()) endCombat(false);
 }
 
 function checkWin() {
@@ -122,27 +243,11 @@ function checkWin() {
   return false;
 }
 
-function enemyTurn() {
-    addLog(`敌人反击...`);
-    const enemy = combatState.enemy;
-    let attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2; 
-
-    for (let i = 0; i < attacks; i++) {
-        const target = randomAliveCharacter();
-        if (!target) break; 
-        const roll = d6();
-        if (roll + enemy.att >= TO_HIT_TARGET) {
-            target.hp -= 1;
-            addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
-        } else {
-            addLog(`${enemy.name} 扑向 ${target.name} 但被躲开了。`);
-        }
-    }
-    if (!randomAliveCharacter()) endCombat(false);
-}
-
 function endCombat(win) {
   combatState.active = false;
+  // 战斗结束清除全员状态 (除了永久BUFF，但目前全是临时的)
+  party.forEach(p => p.status = []);
+  
   if (win) {
     addLog(`🎉 战斗胜利！`);
     gameState = 'EXPLORING';
@@ -214,6 +319,7 @@ function tryFlee() {
         addLog(`逃跑成功！`);
         const target = randomAliveCharacter();
         if (target) { target.hp -= 1; addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); }
+        party.forEach(p => p.status = []); // 逃跑也清除状态
         gameState = 'EXPLORING'; 
         updateUI();
       } else {
@@ -226,12 +332,10 @@ function tryFlee() {
   });
 }
 
-// --- 修改后的遭遇解决函数 ---
 window.resolveEncounter = function(room){
   const enc = room.encounter;
   if (enc.main === 'none') { room._encounterResolved = true; return; }
 
-  // 1. 怪物/Boss 保持原样
   if (enc.main === 'monster') {
       addLog(`>>> 遭遇：${enc.main} ${enc.subtype||''} <<<`);
       initCombat(enc.template, 'group');
@@ -243,7 +347,6 @@ window.resolveEncounter = function(room){
       return;
   }
   
-  // 2. 宝箱/空房间 自动结算
   if (enc.main === 'treasure') {
     addLog(`>>> 发现：${enc.subtype} <<<`);
     if (enc.subtype.includes('金币')) gainLoot('gold'); else gainLoot('item');
@@ -256,121 +359,85 @@ window.resolveEncounter = function(room){
       return;
   }
 
-  // 3. 事件 (祭坛/谜题/陷阱) -> 进入互动模式
   if (enc.main === 'event') {
       const eventDef = EVENT_DEFINITIONS[enc.subtype];
       if (eventDef) {
           gameState = 'EVENT';
           activeEvent = eventDef;
           addLog(`>>> 触发事件：${eventDef.title} <<<`);
-          updateUI(); // 触发 UI 渲染事件面板
+          updateUI(); 
       } else {
-          // 如果数据缺失，回退到自动
           addLog(`你发现了 ${enc.subtype}，但不知道怎么处理。`);
           room._encounterResolved = true;
       }
   }
 };
 
-// --- 新增：处理事件选项 ---
 window.handleEventChoice = function(optionIndex) {
     const option = activeEvent.options[optionIndex];
-    
-    // 检查职业要求
     if (option.reqClass) {
         const reqs = Array.isArray(option.reqClass) ? option.reqClass : [option.reqClass];
-        // 还要检查角色是否活着
         const hasClass = party.some(p => reqs.includes(p.class || p.race) && p.hp > 0);
-        
-        if (!hasClass) {
-            alert("你的队伍里没有活着的相关专家来执行此操作！");
-            return;
-        }
+        if (!hasClass) { alert("你的队伍里没有活着的相关专家！"); return; }
     }
-
     addLog(`> 选择: ${option.label}`);
 
-    // 根据类型执行逻辑
     if (option.type === 'class_check' || option.type === 'auto_loot') {
-        addLog(`专家出手，轻松搞定！`);
-        gainLoot('item');
-        endEvent();
+        addLog(`专家出手，轻松搞定！`); gainLoot('item'); endEvent();
     }
     else if (option.type === 'heal_party') {
         addLog(`神圣的光芒照耀着队伍...`);
         party.forEach(p => { if(p.hp > 0) p.hp = Math.min(p.maxHp, p.hp + option.amount); });
-        addLog(`全员恢复了 ${option.amount} 点生命。`);
-        endEvent();
+        addLog(`全员恢复了 ${option.amount} 点生命。`); endEvent();
     }
     else if (option.type === 'sacrifice') {
         const p = randomAliveCharacter();
         if(p) {
             p.hp = Math.max(1, p.hp - option.cost);
             addLog(`${p.name} 献祭了鲜血 (-${option.cost} HP)，换来了力量！`);
-            gainXp(p, 5);
-            inventory.gold += 20;
+            gainXp(p, 5); inventory.gold += 20;
             addLog("获得了 20 金币和 5 点经验。");
-        }
-        endEvent();
+        } endEvent();
     }
     else if (option.type === 'leave') {
-        addLog("你谨慎地离开了，什么也没发生。");
-        endEvent();
+        addLog("你谨慎地离开了。"); endEvent();
     }
     else if (option.type === 'tank_damage') {
-        // 找个肉盾
         const tank = party.find(p => (option.validClasses.includes(p.class)) && p.hp > 0);
         if (tank) {
             tank.hp -= option.damage;
-            addLog(`${tank.name} 挺身而出挡住了伤害 (-${option.damage} HP)，保护了队友。`);
-            endEvent();
-        } else {
-            alert("没有活着的肉盾！"); // UI 应该禁用此按钮，但做个双保险
-        }
+            addLog(`${tank.name} 挺身而出挡住了伤害 (-${option.damage} HP)。`); endEvent();
+        } else { alert("没有活着的肉盾！"); }
     }
     else if (option.type === 'roll_check') {
-        // 骰子判定
         rollDiceAnim([{label:"全员判定", id:"check"}], (results) => {
             const roll = results['check'];
-            if (roll >= option.target) {
-                addLog(`(🎲 ${roll}) ${option.successMsg}`);
-            } else {
+            if (roll >= option.target) { addLog(`(🎲 ${roll}) ${option.successMsg}`); } 
+            else {
                 addLog(`(🎲 ${roll}) ${option.failMsg}`);
                 party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - option.failDamage); });
                 if (!randomAliveCharacter()) { gameState = 'GAMEOVER'; updateUI(); return; }
-            }
-            endEvent();
+            } endEvent();
         });
     }
     else if (option.type === 'gamble') {
         rollDiceAnim([{label:"运气测试", id:"gamble"}], (results) => {
             const roll = results['gamble'];
-            if (roll === 6) {
-                addLog(`(🎲 6) 奇迹发生了！机关打开，里面有宝藏！`);
-                gainLoot('item');
-            } else if (roll === 1) {
-                addLog(`(🎲 1) 轰隆！你触动了陷阱！`);
-                party.forEach(p => p.hp = Math.max(0, p.hp - 2));
-            } else {
-                addLog(`(🎲 ${roll}) 什么也没发生。`);
-            }
+            if (roll === 6) { addLog(`(🎲 6) 机关打开，里面有宝藏！`); gainLoot('item'); } 
+            else if (roll === 1) { addLog(`(🎲 1) 轰隆！你触动了陷阱！`); party.forEach(p => p.hp = Math.max(0, p.hp - 2)); } 
+            else { addLog(`(🎲 ${roll}) 什么也没发生。`); }
             endEvent();
         });
     }
     else if (option.type === 'force_open') {
-        // 暴力开门：50% 几率得宝，50% 几率刷怪
         rollDiceAnim([{label:"暴力破拆", id:"bash"}], (results) => {
             const roll = results['bash'];
-            if (roll >= 4) {
-                addLog(`轰的一声，门被砸开了！里面有宝物。`);
-                gainLoot('gold');
-                endEvent();
-            } else {
-                addLog(`巨大的噪音引来了敌人！`);
+            if (roll >= 4) { addLog(`轰的一声，门被砸开了！`); gainLoot('gold'); endEvent(); } 
+            else {
+                addLog(`噪音引来了敌人！`);
                 const pool = MONSTER_POOLS['beast'];
                 const enemy = pool[Math.floor(Math.random()*pool.length)];
-                initCombat(enemy, 'group'); // 切换到战斗，事件结束
-                // 注意：initCombat 会设gameState为COMBAT，覆盖 EVENT
+                initCombat(enemy, 'group'); 
             }
         });
     }
@@ -378,11 +445,6 @@ window.handleEventChoice = function(optionIndex) {
 
 function endEvent() {
     if (gameState === 'GAMEOVER') return;
-    
-    // 增加一个“继续”按钮的过渡状态，或者直接回探索
-    // 这里为了流畅，直接显示一个小结然后回探索，但为了防止玩家没看清日志，我们可以让 UI 渲染一个“完成”按钮
-    // 为了简单，我们直接切回探索，但在 UI 上我们增加一个 check
-    
     if (dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     gameState = 'EXPLORING';
     updateUI();

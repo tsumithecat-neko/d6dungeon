@@ -2,7 +2,88 @@
 
 const TO_HIT_TARGET = 4; // 判定标准
 
-// --- 房间生成表 (2d10) ---
+// --- 状态与图标 ---
+const STATUS_ICONS = {
+    poison: '☠️', // 中毒
+    stun:   '💫', // 眩晕
+    rage:   '💢', // 狂暴(加攻)
+    weak:   '📉', // 虚弱(减攻)
+    regen:  '🌿'  // 再生
+};
+
+// --- 怪物技能库 ---
+const MONSTER_SKILLS = {
+    'poison_spit': { 
+        name: "剧毒喷吐", 
+        desc: "造成1点伤害并施加中毒(3回合)", 
+        rate: 0.4, // 触发几率
+        perform: (user, target) => {
+            target.hp -= 1;
+            applyStatus(target, 'poison', 3);
+            return `${user.name} 喷出一口毒液！${target.name} 受伤并中毒了。`;
+        }
+    },
+    'web_trap': {
+        name: "蛛网缠绕",
+        desc: "使目标眩晕(1回合)",
+        rate: 0.3,
+        perform: (user, target) => {
+            applyStatus(target, 'stun', 1);
+            return `${user.name} 射出粘稠的蛛网，${target.name} 动弹不得！`;
+        }
+    },
+    'warcry': {
+        name: "战吼",
+        desc: "自身获得狂暴(3回合)",
+        rate: 0.3,
+        targetSelf: true,
+        perform: (user) => {
+            applyStatus(user, 'rage', 3);
+            return `${user.name} 发出震耳欲聋的咆哮，进入了狂暴状态！`;
+        }
+    },
+    'curse': {
+        name: "虚弱诅咒",
+        desc: "使目标虚弱(3回合)",
+        rate: 0.4,
+        perform: (user, target) => {
+            applyStatus(target, 'weak', 3);
+            return `${user.name} 念出亵渎的咒语，${target.name} 感到力量流失了。`;
+        }
+    },
+    'smash': {
+        name: "重击",
+        desc: "造成2点强力伤害",
+        rate: 0.5,
+        perform: (user, target) => {
+            target.hp -= 2;
+            return `${user.name} 蓄力重击！${target.name} 受到了 2 点伤害！`;
+        }
+    }
+};
+
+// --- 怪物池 (已更新技能) ---
+const MONSTER_POOLS = {
+  minion: [ 
+      { name: "骷髅兵", count: 4, att: 0, skills: [] }, 
+      { name: "变异巨鼠", count: 5, att: 0, skills: ['poison_spit'] }, 
+      { name: "地精斥候", count: 3, att: 1, skills: [] }, 
+      { name: "吸血蝙蝠", count: 4, att: 0, skills: ['curse'] } 
+  ],
+  beast: [ 
+      { name: "兽人狂战", count: 2, att: 1, skills: ['warcry'] }, 
+      { name: "食人妖", count: 1, att: 2, skills: ['smash'] }, 
+      { name: "装甲蜘蛛", count: 2, att: 1, skills: ['web_trap', 'poison_spit'] } 
+  ],
+  boss: [ 
+      { name: "双头食人魔", hp: 10, att: 2, skills: ['warcry', 'smash'] }, 
+      { name: "混沌死灵法师", hp: 8, att: 3, skills: ['curse', 'poison_spit'] }, 
+      { name: "石化美杜莎", hp: 8, att: 3, skills: ['web_trap', 'curse'] }, 
+      { name: "深渊恶魔", hp: 12, att: 2, skills: ['warcry', 'smash', 'poison_spit'] } 
+  ]
+};
+
+// --- 房间生成表 ---
 const ROOM_TABLE = {
   2:  { name: "狭窄走廊", type: "corridor", w: 1, h: 4, shape: 'rect' },
   3:  { name: "宽阔走廊", type: "corridor", w: 2, h: 4, shape: 'rect' },
@@ -25,7 +106,6 @@ const ROOM_TABLE = {
   20: { name: "古代宝库", type: "treasure_room", w: 4, h: 4, shape: 'diamond' }
 };
 
-// 连接用的短走廊
 const CONNECTOR_CORRIDORS = {
     horiz_1: { name: "短通道", type: "corridor", w: 1, h: 1, shape: 'rect' },
     horiz_2: { name: "通道", type: "corridor", w: 2, h: 1, shape: 'rect' },
@@ -33,7 +113,10 @@ const CONNECTOR_CORRIDORS = {
     vert_2:  { name: "通道", type: "corridor", w: 1, h: 2, shape: 'rect' }
 };
 
-// --- 1. 职业基础属性 ---
+// 职业/种族/技能/物品 保持不变 (为了节省篇幅，这里继承之前的定义)
+// 注意：如果你之前覆盖了 data.js，请确保这些基础数据还在。
+// 建议：直接保留下面的代码块作为完整文件。
+
 const CLASS_BASE_STATS = {
     warrior: { name: "战士", hp: 10, mp: 2, att: 1, desc: "前排肉盾，擅长物理攻击" },
     rogue:   { name: "盗贼", hp: 7,  mp: 4, att: 1, desc: "技巧型，擅长暴击和闪避" },
@@ -43,7 +126,6 @@ const CLASS_BASE_STATS = {
     ranger:  { name: "游侠",   hp: 8, mp: 4, att: 1, desc: "远程射手，多段攻击" }
 };
 
-// --- 2. 种族修正 ---
 const RACES = {
     human:    { name: "人类", hp: 1, mp: 1, att: 0, desc: "均衡多才 (HP+1, MP+1)" },
     dwarf:    { name: "矮人", hp: 3, mp: -1, att: 0, desc: "坚韧顽强 (HP+3, MP-1)" },
@@ -53,7 +135,6 @@ const RACES = {
     tiefling: { name: "提夫林", hp: 0, mp: 1, att: 1, desc: "炼狱血统 (攻+1, MP+1)" }
 };
 
-// --- 3. 职业技能定义 ---
 const CLASS_SKILLS = {
     warrior: {
         name: "强力横扫", cost: 1, desc: "消耗1体力，对敌人造成必中的 2 点伤害。",
@@ -131,87 +212,6 @@ const CLASS_SKILLS = {
     }
 };
 
-// --- 新增：互动事件定义 ---
-const EVENT_DEFINITIONS = {
-    '陷阱': {
-        title: "⛔ 致命机关",
-        desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
-        options: [
-            {
-                label: "✋ 尝试拆除",
-                reqClass: "rogue",
-                desc: "需: 盗贼。利用专业工具尝试卡住齿轮。(成功率: 极高)",
-                type: "class_check",
-                outcome: "success_loot"
-            },
-            {
-                label: "🏃 全员闪避",
-                desc: "全队尝试躲开毒箭。(判定: d6 >= 4)",
-                type: "roll_check",
-                target: 4,
-                failDamage: 2,
-                successMsg: "你们身手矫健，毒箭全部射在了空地上！",
-                failMsg: "反应太慢了！几名队友被毒箭擦伤。"
-            },
-            {
-                label: "🛡️ 举盾硬抗",
-                desc: "需: 战士/圣骑士。站在最前面挡下伤害。",
-                type: "tank_damage",
-                damage: 2, // 坦克受少量伤害，保护其他人
-                validClasses: ["warrior", "paladin"]
-            }
-        ]
-    },
-    '祭坛': {
-        title: "🕯️ 诡异的祭坛",
-        desc: "房间中央摆放着一座散发着微光的石制祭坛，上面刻满了模糊不清的符文。",
-        options: [
-            {
-                label: "🙏 虔诚祈祷",
-                reqClass: ["cleric", "paladin"],
-                desc: "需: 牧师/圣骑士。向神明祈求庇护。(恢复全体 HP)",
-                type: "heal_party",
-                amount: 3
-            },
-            {
-                label: "🩸 献祭鲜血",
-                desc: "献上自己的生命力以换取力量。(HP -3, 获得经验/金币)",
-                type: "sacrifice",
-                cost: 3
-            },
-            {
-                label: "👋 转身离开",
-                desc: "不要招惹未知的存在。",
-                type: "leave"
-            }
-        ]
-    },
-    '谜题': {
-        title: "🧩 远古谜题",
-        desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
-        options: [
-            {
-                label: "✨ 解读符文",
-                reqClass: "wizard",
-                desc: "需: 法师。利用奥术知识直接破解。(获得宝物)",
-                type: "auto_loot"
-            },
-            {
-                label: "🎲 尝试猜测",
-                desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)",
-                type: "gamble"
-            },
-            {
-                label: "💥 暴力破门",
-                reqClass: ["warrior", "orc"], // 职业或种族
-                desc: "需: 战士/兽人。用蛮力砸开它！(可能触发战斗)",
-                type: "force_open"
-            }
-        ]
-    }
-};
-
-// --- 4. 职业升级成长表 ---
 const CLASS_GROWTH = {
     warrior: { hp: 2, mp: 0, att: 1, desc: "体格强化 (HP+2, 攻+1)" },
     rogue:   { hp: 1, mp: 1, att: 1, desc: "技巧磨练 (HP+1, MP+1, 攻+1)" },
@@ -221,14 +221,36 @@ const CLASS_GROWTH = {
     ranger:  { hp: 1, mp: 1, att: 1, desc: "狩猎本能 (HP+1, MP+1, 攻+1)" }
 };
 
-// 怪物池
-const MONSTER_POOLS = {
-  minion: [ { name: "骷髅兵", count: 4, att: 0 }, { name: "变异巨鼠", count: 5, att: 0 }, { name: "地精斥候", count: 3, att: 1 }, { name: "吸血蝙蝠", count: 4, att: 0 } ],
-  beast: [ { name: "兽人狂战", count: 2, att: 1 }, { name: "食人妖", count: 1, att: 2 }, { name: "装甲蜘蛛", count: 2, att: 1 } ],
-  boss: [ { name: "双头食人魔", hp: 8, att: 2 }, { name: "混沌死灵法师", hp: 6, att: 3 }, { name: "石化美杜莎", hp: 6, att: 3 }, { name: "深渊恶魔", hp: 10, att: 2 } ]
+const EVENT_DEFINITIONS = {
+    '陷阱': {
+        title: "⛔ 致命机关",
+        desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
+        options: [
+            { label: "✋ 尝试拆除", reqClass: "rogue", desc: "需: 盗贼。利用专业工具尝试卡住齿轮。", type: "class_check" },
+            { label: "🏃 全员闪避", desc: "全队尝试躲开毒箭。(判定: d6 >= 4)", type: "roll_check", target: 4, failDamage: 2, successMsg: "你们身手矫健，毒箭全部射在了空地上！", failMsg: "反应太慢了！几名队友被毒箭擦伤。" },
+            { label: "🛡️ 举盾硬抗", desc: "需: 战士/圣骑士。站在最前面挡下伤害。", type: "tank_damage", damage: 2, validClasses: ["warrior", "paladin"] }
+        ]
+    },
+    '祭坛': {
+        title: "🕯️ 诡异的祭坛",
+        desc: "房间中央摆放着一座散发着微光的石制祭坛，上面刻满了模糊不清的符文。",
+        options: [
+            { label: "🙏 虔诚祈祷", reqClass: ["cleric", "paladin"], desc: "需: 牧师/圣骑士。向神明祈求庇护。(恢复全体 HP)", type: "heal_party", amount: 3 },
+            { label: "🩸 献祭鲜血", desc: "献上自己的生命力以换取力量。(HP -3, 获得经验/金币)", type: "sacrifice", cost: 3 },
+            { label: "👋 转身离开", desc: "不要招惹未知的存在。", type: "leave" }
+        ]
+    },
+    '谜题': {
+        title: "🧩 远古谜题",
+        desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
+        options: [
+            { label: "✨ 解读符文", reqClass: "wizard", desc: "需: 法师。利用奥术知识直接破解。(获得宝物)", type: "auto_loot" },
+            { label: "🎲 尝试猜测", desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)", type: "gamble" },
+            { label: "💥 暴力破门", reqClass: ["warrior", "orc"], desc: "需: 战士/兽人。用蛮力砸开它！", type: "force_open" }
+        ]
+    }
 };
 
-// 物品定义
 const ITEM_TYPES = {
   potion: { name: "治疗药水", type: "consumable", desc: "恢复4点HP", effect: (target) => { 
       target.hp = Math.min(target.hp + 4, target.maxHp); 
@@ -250,7 +272,6 @@ const ITEM_TYPES = {
   gem: { name: "红宝石", type: "treasure", desc: "价值 10 金币", value: 10 }
 };
 
-// --- 5. 装备数据 ---
 const GEAR_DATA = {
     weapons: [
         { name: "生锈短剑", type: "weapon", att: 1, cost: 20, level: 1 },
