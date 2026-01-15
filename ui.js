@@ -478,8 +478,24 @@ function renderControls(){
     const fleeBtn = document.createElement('button'); fleeBtn.innerHTML = "🏃 试图逃跑"; fleeBtn.style.width = '100%'; fleeBtn.onclick = tryFlee;
     combatPanel.appendChild(fleeBtn);
     container.appendChild(combatPanel);
-  } 
-  else if (gameState === 'GAMEOVER') {
+  } else if (gameState === 'VICTORY') {
+      // --- 新增：VICTORY 状态显示 ---
+      const victoryPanel = document.createElement('div');
+      victoryPanel.style.textAlign = 'center';
+      
+      const msg = document.createElement('h3');
+      msg.textContent = "🏆 恭喜通关！";
+      msg.style.color = "#fbc02d";
+      victoryPanel.appendChild(msg);
+
+      const btn = document.createElement('button');
+      btn.innerHTML = "🏠 <b>凯旋回城 (结算)</b>";
+      btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
+      btn.onclick = () => window.enterTown();
+      victoryPanel.appendChild(btn);
+      
+      container.appendChild(victoryPanel);
+  } else if (gameState === 'GAMEOVER') {
     const rBtn = document.createElement('button');
     rBtn.textContent = "💀 重新开始";
     rBtn.style.cssText = "width:100%; padding:15px; border:3px solid #b71c1c; color:#b71c1c; font-weight:bold; font-size:1.2em; cursor:pointer";
@@ -487,7 +503,7 @@ function renderControls(){
     container.appendChild(rBtn);
   }
 
-  if (gameState !== 'TOWN' && gameState !== 'CREATION') {
+  if (gameState !== 'TOWN' && gameState !== 'CREATION' && gameState !== 'VICTORY') {
     const hr = document.createElement('hr'); hr.style.cssText = "margin: 15px 0; border: 0; border-top: 1px dashed #ccc;"; container.appendChild(hr);
     const systemBtn = document.createElement('button'); systemBtn.innerHTML = "💾 系统 / 存读档"; systemBtn.style.width = "100%"; systemBtn.fontSize = "0.9em";
     systemBtn.onclick = () => showSaveLoadMenu(); container.appendChild(systemBtn);
@@ -521,6 +537,14 @@ function renderInventory() {
         if (item.type === 'combat' && gameState !== 'COMBAT') { btn.textContent = '战斗用'; btn.disabled = true; } 
         else { btn.textContent = '使用'; btn.onclick = () => showTargetSelection(index); }
     }
+    
+    // --- 新增：在 VICTORY 状态禁用所有物品操作 ---
+    if (gameState === 'VICTORY') {
+        btn.disabled = true;
+        btn.textContent = '锁定';
+        btn.style.opacity = 0.5;
+    }
+
     li.appendChild(infoSpan); li.appendChild(btn); list.appendChild(li);
   });
 }

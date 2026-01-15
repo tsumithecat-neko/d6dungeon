@@ -59,6 +59,12 @@ function gainLoot(type) {
 }
 
 window.confirmUseItem = function(itemIndex, userIndex) {
+    // --- 新增：VICTORY 状态下禁止使用 ---
+    if (gameState === 'VICTORY') {
+        addLog("你已经赢了，别再折腾装备了，快回城庆祝吧！");
+        return;
+    }
+
     const item = inventory.items[itemIndex];
     const user = party[userIndex];
 
@@ -86,6 +92,12 @@ window.confirmUseItem = function(itemIndex, userIndex) {
 };
 
 window.sellItem = function(index) {
+    // --- 新增：VICTORY 状态下禁止出售 ---
+    if (gameState === 'VICTORY') {
+        addLog("先把战利品带回城再卖吧！");
+        return;
+    }
+
     const item = inventory.items[index];
     const sellPrice = item.type === 'treasure' ? item.value : Math.floor(item.cost / 2);
     inventory.gold += sellPrice;
@@ -131,7 +143,6 @@ window.equipItem = function(itemIndex, charIndex) {
         char.equipment.armor = item;
         const newBonus = item.hpMax || 0;
         char.maxHp += newBonus;
-        // fix: 装备防具时只增加上限，不再增加当前hp，防止刷血
         // char.hp += newBonus; 
     }
     inventory.items.splice(itemIndex, 1);

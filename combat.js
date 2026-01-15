@@ -141,7 +141,7 @@ function fightRound() {
       let hits = 0;
       
       activePartyMembers.forEach((p) => {
-          // fix: 检查战斗是否已经结束（例如之前的队友已经杀死了敌人）
+          // fix: 检查战斗是否已经结束
           const isEnemyDead = (combatState.type === 'group' && enemy.count <= 0) || 
                               (combatState.type === 'boss' && enemy.hp <= 0);
           if (!combatState.active || isEnemyDead) return;
@@ -190,7 +190,6 @@ function fightRound() {
           }
       });
       
-      // fix: 只有在还有敌人的情况下才显示"普攻未能造成有效打击"
       const isEnemyDeadNow = (combatState.type === 'group' && enemy.count <= 0) || 
                              (combatState.type === 'boss' && enemy.hp <= 0);
       if (hits === 0 && !isEnemyDeadNow) addLog("普攻未能造成有效打击！");
@@ -229,7 +228,6 @@ function enemyTurn() {
         }
 
         if (!skillUsed) {
-            // 词缀效果：防具闪避
             const aAffix = target.equipment?.armor?.affix;
             if (aAffix && aAffix.effect === 'dodge') {
                 if (Math.random() < 0.15) { 
@@ -244,7 +242,6 @@ function enemyTurn() {
                 target.hp -= 1;
                 addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
                 
-                // 词缀效果：荆棘反伤
                 if (aAffix && aAffix.effect === 'thorns') {
                     enemy.hp -= 1;
                     addLog(`🌵 [荆棘] 铠甲反弹了 1 点伤害！`);
@@ -272,7 +269,6 @@ function endCombat(win) {
   
   if (win) {
     addLog(`🎉 战斗胜利！`);
-    gameState = 'EXPLORING';
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
     const xpGain = (combatState.type === 'boss') ? 5 : 2;
@@ -281,19 +277,14 @@ function endCombat(win) {
     if (combatState.type === 'boss') {
         addLog("✨ 击败地牢领主，你在王座下发现了一个华丽的宝箱！");
         gainLoot('item'); 
-        updateUI();
         
-        const controls = document.getElementById('controls');
-        if(controls) {
-            controls.innerHTML = '';
-            const btn = document.createElement('button');
-            btn.innerHTML = "🏠 <b>凯旋回城 (结算)</b>";
-            btn.style.cssText = "width:100%; padding:10px; background:#fdd835; color:#000; font-weight:bold; margin-top:10px; border:2px solid #fbc02d;";
-            btn.onclick = () => window.enterTown();
-            controls.appendChild(btn);
-        }
+        // --- CHANGE: 设置为 VICTORY 状态，阻止玩家移动或操作背包 ---
+        gameState = 'VICTORY';
+        updateUI(); 
         return; 
     } else {
+        // 只有非 Boss 战才回到 EXPLORING
+        gameState = 'EXPLORING';
         const lootRoll = d6();
         if (lootRoll >= 5) gainLoot('item'); 
         else if (lootRoll >= 3) gainLoot('gold'); 
