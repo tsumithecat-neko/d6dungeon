@@ -1,7 +1,6 @@
 // dungeon.js - 地牢生成与房间管理
 
 // --- 辅助：物理碰撞检测 ---
-
 function getRoomBounds(cx, cy, wTiles, hTiles) {
   const tileSize = window.TILE_SIZE || 20; 
   const wPixels = wTiles * tileSize;
@@ -16,6 +15,9 @@ function getRoomBounds(cx, cy, wTiles, hTiles) {
 }
 
 function checkCollision(targetBounds) {
+  // 确保 dungeon 存在
+  if (typeof dungeon === 'undefined') return false;
+
   for (const id in dungeon) {
     const room = dungeon[id];
     if (room.absX === undefined || !room.shape) continue;
@@ -35,15 +37,24 @@ function checkCollision(targetBounds) {
 function createRoom(type, isConnector = false){
   let roll, shapeData;
   
-  // --- 新增：探索度保底机制 ---
-  // 如果不是走廊，且当前房间数超过 12，强制生成 Boss 房间 (Roll 19: 王座间)
-  const roomCount = Object.keys(dungeon).length;
+  // 安全地获取当前房间数量，防止 dungeon 未定义报错
+  // 注意：在 startGame 初始化时 dungeon 刚被清空，这里长度为 0 是正常的
+  const currentDungeon = (typeof dungeon !== 'undefined') ? dungeon : {};
+  const roomCount = Object.keys(currentDungeon).length;
+  
+  // 探索度保底机制：如果不是起始房、不是走廊，且房间数够多，强制生成 Boss
   const forceBoss = (!type && !isConnector && roomCount > 12);
 
   if (type === 'start') {
     roll = 6; 
-    shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[6])); 
-    shapeData.name = "入口大厅";
+    // 确保 ROOM_TABLE 存在
+    if (typeof ROOM_TABLE !== 'undefined' && ROOM_TABLE[6]) {
+        shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[6])); 
+        shapeData.name = "入口大厅";
+    } else {
+        console.error("ROOM_TABLE 丢失或损坏");
+        return null;
+    }
   } else if (type === 'connector_h1') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.horiz_1));
   } else if (type === 'connector_h2') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.horiz_2));
   } else if (type === 'connector_v1') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.vert_1));
@@ -58,8 +69,8 @@ function createRoom(type, isConnector = false){
     shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[roll]));
   }
   
-  // --- 修正：将房间类型传给遭遇生成器 ---
   const roomType = shapeData.type || 'room';
+  // 这里的 generateEncounter 必须保证已定义
   const encounter = (type === 'start' || isConnector) ? { main: 'none' } : generateEncounter(roomType);
   
   const room = {
@@ -81,10 +92,11 @@ function createRoom(type, isConnector = false){
   return room;
 }
 
-// --- 修正：遭遇生成逻辑 ---
-// 只有 boss_room 才能生成真正的 Boss (触发通关)
+// ... 后面的 generateEncounter 等函数保持不变 ...
+// 务必确保文件末尾包含原本的 generateEncounter, openDoor 等函数
+// (以下补全以便您直接复制替换)
+
 function generateEncounter(roomType){
-  // 1. 如果是 Boss 房，100% 遭遇 Boss
   if (roomType === 'boss_room') {
       const pool = MONSTER_POOLS['boss'];
       const pick = pool[Math.floor(Math.random()*pool.length)];
@@ -93,9 +105,7 @@ function generateEncounter(roomType){
 
   const r = d6();
   
-  // 2. 普通房间生成逻辑
   if (r <= 2) { 
-    // 怪物
     const sub = (d6() <= 4) ? 'minion' : 'beast';
     const pool = MONSTER_POOLS[sub];
     const pick = pool[Math.floor(Math.random()*pool.length)];
@@ -105,17 +115,11 @@ function generateEncounter(roomType){
   if (r === 4) return { main: 'treasure', subtype: randomFrom(['金币','宝石','魔法卷轴']) };
   if (r === 5) return { main: 'special', subtype: '空房间' };
   
-  // 3. 如果在普通房间骰出了 6 (原本是Boss)
-  // 降级为 'beast' (强力怪)，避免误触发通关
-  // 或者你可以定义一个 'elite' 类型，但为了简单，这里用 beast
   const pool = MONSTER_POOLS['beast'];
   const pick = pool[Math.floor(Math.random()*pool.length)];
-  // 稍微加强一点名字，让玩家知道这是个精英
   pick.name = "游荡的 " + pick.name; 
   return { main: 'monster', subtype: 'beast', template: JSON.parse(JSON.stringify(pick)) };
 }
-
-// --- 核心交互逻辑 ---
 
 function openDoor(dir){
   if (gameState !== 'EXPLORING') return;
@@ -150,7 +154,6 @@ function openDoor(dir){
   currentRoom.visited = true;
 
   if (!currentRoom._encounterResolved) {
-      // 调用 combat.js 中的 resolveEncounter
       if (window.resolveEncounter) window.resolveEncounter(currentRoom);
   }
   else if (!currentRoom.isConnector) addLog("这是一个安全的区域。");
