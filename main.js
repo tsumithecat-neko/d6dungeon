@@ -13,6 +13,8 @@ window.retireGame = function() {
         alert("冒险结束。");
     }
 
+    if (typeof clearAutoSave === 'function') clearAutoSave();
+
     // 重置游戏回到主菜单
     initGame();
 };
@@ -80,6 +82,8 @@ window.startGame = function() {
 function initGame(){
   gameState = 'CREATION';
   party.length = 0; 
+  adventureLog.length = 0;
+  if (typeof renderLogHistory === 'function') renderLogHistory();
   updateUI();
 }
 

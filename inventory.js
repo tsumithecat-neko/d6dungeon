@@ -47,7 +47,7 @@ function gainLoot(type) {
         let itemKey = 'potion';
         if(roll === 3) itemKey = 'scroll';
         else if(roll === 1) itemKey = 'gem';
-        newItem = { ...ITEM_TYPES[itemKey], id: Date.now() + Math.random() };
+        newItem = { ...ITEM_TYPES[itemKey], itemKey, id: Date.now() + Math.random() };
     }
     inventory.items.push(newItem);
     
@@ -80,13 +80,17 @@ window.confirmUseItem = function(itemIndex, userIndex) {
         }
     }
 
-    const used = item.effect(user, combatState); 
+    const used = executeItemEffect(item.effectId, user, combatState);
 
     if (used !== false) { 
         inventory.items.splice(itemIndex, 1);
         if (gameState === 'COMBAT') {
             combatState.actedIndices.push(userIndex);
         }
+    }
+
+    if (used !== false && gameState === 'COMBAT' && combatState.active) {
+        checkWin();
     }
     updateUI();
 };
@@ -121,7 +125,7 @@ window.buyItem = function(itemIdx) {
     const item = window.shopStock[itemIdx];
     if (inventory.gold < item.cost) { alert("金币不足！"); return; }
     inventory.gold -= item.cost;
-    inventory.items.push(JSON.parse(JSON.stringify(item)));
+    inventory.items.push(cloneItem(item));
     addLog(`购买了 ${item.name}。`);
     updateUI();
 };

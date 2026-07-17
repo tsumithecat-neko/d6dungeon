@@ -84,9 +84,9 @@ function generateEncounter(roomType){
   if (r === 5) return { main: 'special', subtype: '空房间' };
   
   const pool = MONSTER_POOLS['beast'];
-  const pick = pool[Math.floor(Math.random()*pool.length)];
+  const pick = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
   pick.name = "游荡的 " + pick.name; 
-  return { main: 'monster', subtype: 'beast', template: JSON.parse(JSON.stringify(pick)) };
+  return { main: 'monster', subtype: 'beast', template: pick };
 }
 
 // --- 核心交互逻辑 ---

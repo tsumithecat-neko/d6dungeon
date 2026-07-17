@@ -5,18 +5,52 @@ function d10(){ return Math.floor(Math.random()*10)+1 }
 function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)] }
 function arrow(d){ return {up:'↑',down:'↓',left:'←',right:'→'}[d] }
 
-function addLog(t){ 
-  const log = document.getElementById('logContent'); 
-  const p = document.createElement('div'); 
-  
-  if (t.includes('击中') || t.includes('伤害')) p.style.color = '#ffcc80';
-  if (t.includes('胜利') || t.includes('获得')) p.style.color = '#a5d6a7';
-  if (t.includes('遭遇')) p.style.color = '#90caf9';
-  if (t.includes('全灭') || t.includes('失败')) p.style.color = '#ef9a9a';
-  if (t.includes('存档')) p.style.color = '#ce93d8';
-  
-  p.innerHTML = t; 
-  log.appendChild(p); 
+function inferLogType(message) {
+  if (message.includes('意图') || message.includes('准备')) return 'intent';
+  if (message.includes('全灭') || message.includes('失败') || message.includes('阵亡')) return 'danger';
+  if (message.includes('胜利') || message.includes('获得') || message.includes('升级')) return 'reward';
+  if (message.includes('恢复') || message.includes('治愈')) return 'heal';
+  if (message.includes('遭遇') || message.includes('敌人出现') || message.includes('首领')) return 'encounter';
+  if (message.includes('击中') || message.includes('伤害') || message.includes('攻击')) return 'combat';
+  if (message.includes('存档') || message.includes('读档')) return 'system';
+  if (message.includes('警告') || message.includes('⚠️')) return 'warning';
+  return 'info';
+}
+
+function normalizeLogEntry(input, fallbackType = null) {
+  const message = typeof input === 'object' && input !== null ? String(input.message || '') : String(input || '');
+  const type = typeof input === 'object' && input !== null && input.type
+      ? input.type
+      : fallbackType || inferLogType(message);
+  return { type, message, timestamp: Date.now() };
+}
+
+function createLogElement(entry) {
+  const element = document.createElement('div');
+  element.className = `log-entry log-${entry.type}`;
+  element.dataset.logType = entry.type;
+  element.innerHTML = entry.message;
+  return element;
+}
+
+function renderLogHistory() {
+  const log = document.getElementById('logContent');
+  if (!log) return;
+  log.innerHTML = '';
+  adventureLog.forEach(entry => log.appendChild(createLogElement(entry)));
+  log.scrollTop = log.scrollHeight;
+}
+
+function addLog(entryOrMessage, fallbackType = null){
+  const entry = normalizeLogEntry(entryOrMessage, fallbackType);
+  adventureLog.push(entry);
+  if (adventureLog.length > 200) adventureLog.splice(0, adventureLog.length - 200);
+
+  const log = document.getElementById('logContent');
+  if (!log) return entry;
+  log.appendChild(createLogElement(entry));
+  log.scrollTop = log.scrollHeight;
+  return entry;
 }
 
 function randomAliveCharacter(){
@@ -37,12 +71,44 @@ function logDieIcon(val) {
     return `<span class="log-die ${isCrit?'crit':''}">${val}</span>`;
 }
 
+// JSON 存档和深拷贝不会保留函数。根据静态定义恢复物品行为，
+// 同时兼容尚未包含 itemKey 的旧存档。
+function rehydrateItem(item) {
+    if (!item || typeof item !== 'object') return item;
+
+    const matchedEntry = Object.entries(ITEM_TYPES).find(([key, def]) =>
+        item.itemKey === key || (item.type === def.type && item.name === def.name)
+    );
+    if (!matchedEntry) return item;
+
+    const [itemKey, definition] = matchedEntry;
+    const hydrated = {
+        ...definition,
+        ...item,
+        itemKey,
+        effectId: item.effectId || definition.effectId
+    };
+    delete hydrated.effect;
+    return hydrated;
+}
+
+function cloneItem(item) {
+    return rehydrateItem(JSON.parse(JSON.stringify(item)));
+}
+
 // --- 核心存档逻辑 ---
+
+const AUTO_SAVE_KEY = 'd6dungeon_autosave_v1';
+const AUTO_SAVE_STATES = new Set(['EXPLORING', 'COMBAT', 'EVENT', 'TOWN', 'VICTORY']);
 
 // 1. 收集当前游戏所有数据
 function collectSaveData() {
+    const activeEventKey = activeEvent
+        ? Object.keys(EVENT_DEFINITIONS).find(key => EVENT_DEFINITIONS[key] === activeEvent || EVENT_DEFINITIONS[key].title === activeEvent.title)
+        : null;
+
     return {
-        version: 1.1, // 升级版本号
+        version: 1.3,
         timestamp: Date.now(),
         party: party,
         dungeon: dungeon,
@@ -50,11 +116,68 @@ function collectSaveData() {
         gameState: gameState,
         playerRoomId: playerRoomId,
         combatState: combatState,
+        activeEventKey: activeEventKey || null,
+        shopStock: window.shopStock || [],
+        logEntries: adventureLog,
         // 新增属性：如果存在则保存
         worldLevel: window.worldLevel || 1,
         runStats: window.runStats || { kills: 0 },
         legacy: window.LegacySystem ? window.LegacySystem.data : null
     };
+}
+
+function readAutoSaveData() {
+    try {
+        const raw = localStorage.getItem(AUTO_SAVE_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (!data || !Array.isArray(data.party) || !data.gameState) return null;
+        return data;
+    } catch (error) {
+        console.warn('自动存档读取失败:', error);
+        return null;
+    }
+}
+
+function getAutoSaveSummary() {
+    const data = readAutoSaveData();
+    if (!data) return null;
+    return {
+        timestamp: data.timestamp || 0,
+        gameState: data.gameState,
+        worldLevel: data.worldLevel || 1,
+        partyCount: data.party.length
+    };
+}
+
+function autoSaveGame() {
+    if (!AUTO_SAVE_STATES.has(gameState) || party.length === 0) return false;
+    try {
+        const data = collectSaveData();
+        localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(data));
+        window.lastAutoSaveAt = data.timestamp;
+        return true;
+    } catch (error) {
+        console.warn('自动存档写入失败:', error);
+        return false;
+    }
+}
+
+function loadAutoSaveGame() {
+    const data = readAutoSaveData();
+    if (!data) return false;
+    return importSaveGame(data);
+}
+
+function clearAutoSave() {
+    try {
+        localStorage.removeItem(AUTO_SAVE_KEY);
+        window.lastAutoSaveAt = null;
+        return true;
+    } catch (error) {
+        console.warn('自动存档删除失败:', error);
+        return false;
+    }
 }
 
 // 2. 导出为文件 (下载)
@@ -118,12 +241,31 @@ function importSaveGame(data) {
         Object.assign(dungeon, data.dungeon || {});
 
         inventory.gold = data.inventory?.gold || 0;
-        inventory.items = data.inventory?.items || [];
+        inventory.items = (data.inventory?.items || []).map(rehydrateItem);
 
         gameState = data.gameState || 'CREATION';
         playerRoomId = data.playerRoomId || 'start_room';
         
         Object.assign(combatState, data.combatState || { active: false });
+        if (combatState.enemy) {
+            if (combatState.type === 'group' && !combatState.enemy.maxCount) combatState.enemy.maxCount = combatState.enemy.count;
+            if (combatState.type === 'boss' && !combatState.enemy.maxHp) combatState.enemy.maxHp = combatState.enemy.hp;
+        }
+
+        const eventKey = data.activeEventKey || dungeon[playerRoomId]?.encounter?.subtype;
+        activeEvent = gameState === 'EVENT' && eventKey ? EVENT_DEFINITIONS[eventKey] || null : null;
+        window.shopStock = (data.shopStock || []).map(rehydrateItem);
+        if (gameState === 'TOWN' && window.shopStock.length === 0 && typeof window.generateShopItems === 'function') {
+            window.generateShopItems();
+        }
+
+        adventureLog.length = 0;
+        (data.logEntries || []).slice(-200).forEach(entry => {
+            if (entry && typeof entry.message === 'string') {
+                adventureLog.push({ type: entry.type || inferLogType(entry.message), message: entry.message, timestamp: entry.timestamp || Date.now() });
+            }
+        });
+        if (typeof renderLogHistory === 'function') renderLogHistory();
 
         // --- 新增属性的兼容性处理 ---
         window.worldLevel = data.worldLevel || 1;

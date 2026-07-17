@@ -23,8 +23,8 @@ const LEGACY_UPGRADES = {
         maxLevel: 1,
         apply: (gameState) => {
             if (LegacySystem.getLevel('potion_hoarder') > 0) {
-                if (window.ITEM_TYPES) {
-                    gameState.inventory.items.push({ ...window.ITEM_TYPES.potion, id: 'legacy_pot_' + Date.now() });
+                if (typeof ITEM_TYPES !== 'undefined') {
+                    gameState.inventory.items.push({ ...ITEM_TYPES.potion, itemKey: 'potion', id: 'legacy_pot_' + Date.now() });
                 }
             }
         }

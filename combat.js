@@ -9,6 +9,9 @@ function initCombat(template, type) {
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
   enemyData.status = []; 
 
+  if (type === 'group') enemyData.maxCount = enemyData.count || 1;
+  else enemyData.maxHp = enemyData.hp || 1;
+
   party.forEach(p => { if(!p.status) p.status = []; });
 
   if (type === 'group') {
@@ -28,6 +31,39 @@ function initCombat(template, type) {
       }
   });
   updateUI();
+}
+
+function recordEnemyKills(amount) {
+    const kills = Math.max(0, Math.floor(amount || 0));
+    if (kills === 0) return;
+    if (!window.runStats) window.runStats = { kills: 0 };
+    window.runStats.kills = (window.runStats.kills || 0) + kills;
+}
+
+function isEnemyDefeated() {
+    const enemy = combatState.enemy;
+    if (!enemy) return false;
+    return combatState.type === 'group' ? enemy.count <= 0 : enemy.hp <= 0;
+}
+
+// 所有玩家造成的敌方伤害都走同一入口，确保小怪群、Boss 与击杀统计一致。
+function damageEnemy(amount) {
+    const enemy = combatState.enemy;
+    const damage = Math.max(0, Math.floor(amount || 0));
+    if (!enemy || damage === 0) return 0;
+
+    if (combatState.type === 'group') {
+        const before = Math.max(0, enemy.count || 0);
+        enemy.count = Math.max(0, before - damage);
+        const kills = before - enemy.count;
+        recordEnemyKills(kills);
+        return kills;
+    }
+
+    const before = Math.max(0, enemy.hp || 0);
+    enemy.hp = Math.max(0, before - damage);
+    if (before > 0 && enemy.hp === 0) recordEnemyKills(1);
+    return before - enemy.hp;
 }
 
 // --- 状态与辅助函数 ---
@@ -51,8 +87,14 @@ function processStatusEffects(char) {
         const s = char.status[i];
         
         if (s.type === 'poison') {
-            char.hp -= 1;
-            addLog(`${window.STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
+            if (char === combatState.enemy) {
+                damageEnemy(1);
+                const unit = combatState.type === 'group' ? '一名敌人毒发倒下' : `${char.name} 受到毒素伤害 (-1 HP)`;
+                addLog(`${window.STATUS_ICONS.poison} ${unit}。`);
+            } else {
+                char.hp = Math.max(0, char.hp - 1);
+                addLog(`${window.STATUS_ICONS.poison} ${char.name} 受到毒素伤害 (-1 HP)。`);
+            }
         } else if (s.type === 'regen') {
             char.hp = Math.min(char.maxHp || 99, char.hp + 1);
             addLog(`${window.STATUS_ICONS.regen} ${char.name} 恢复了生命 (+1 HP)。`);
@@ -97,8 +139,8 @@ function useSkill(charIndex, skillData) {
   combatState.actedIndices.push(charIndex); 
   
   addLog(`✨ ${user.name} 发动了 [${skillData.name}]！`);
-  const resultLog = skillData.effect(user, combatState);
-  addLog(resultLog);
+  const resultLog = executeSkillEffect(skillData.effectId, user, combatState);
+  addLog({ type: 'skill', message: resultLog });
 
   if (checkWin()) return;
   updateUI();
@@ -178,12 +220,10 @@ function fightRound() {
               }
 
               if (combatState.type === 'group') {
-                  enemy.count--;
-                  // --- 新增: 击杀统计 ---
-                  if(window.runStats) window.runStats.kills = (window.runStats.kills || 0) + 1;
+                  damageEnemy(1);
                   addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 击杀敌人。`);
               } else {
-                  enemy.hp--;
+                  damageEnemy(1);
                   addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 造成伤害。`);
               }
           } else {
@@ -202,30 +242,39 @@ function fightRound() {
 function enemyTurn() {
     const enemy = combatState.enemy;
     const canAct = processStatusEffects(enemy);
-    if (enemy.hp <= 0) { endCombat(true); return; } 
+    if (isEnemyDefeated()) { endCombat(true); return; }
     if (!canAct) return; 
 
-    addLog(`敌人反击...`);
-    let attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2; 
+    const attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2;
+    const plannedActions = Array.from({ length: attacks }, () => {
+        if (!enemy.skills || enemy.skills.length === 0) return null;
+        const skillChance = combatState.type === 'boss' ? 0.5 : 0.3;
+        if (Math.random() >= skillChance) return null;
+        const skillKey = randomFrom(enemy.skills);
+        const skillDef = MONSTER_SKILLS[skillKey];
+        return skillDef && Math.random() < (skillDef.rate || 1.0) ? skillDef : null;
+    });
+
+    const intentCounts = new Map();
+    plannedActions.forEach(skill => {
+        const label = skill ? skill.name : '普通攻击';
+        intentCounts.set(label, (intentCounts.get(label) || 0) + 1);
+    });
+    const intentText = Array.from(intentCounts.entries()).map(([label, count]) => `${label} ×${count}`).join('、');
+    addLog({ type: 'intent', message: `👁️ <b>${enemy.name} 的意图：</b>${intentText}` });
+    addLog({ type: 'combat', message: '敌人开始行动...' });
 
     for (let i = 0; i < attacks; i++) {
         const target = randomAliveCharacter();
         if (!target) break; 
         
-        let skillUsed = false;
-        if (enemy.skills && enemy.skills.length > 0) {
-            const skillChance = (combatState.type === 'boss') ? 0.5 : 0.3;
-            if (Math.random() < skillChance) {
-                const skillKey = enemy.skills[Math.floor(Math.random() * enemy.skills.length)];
-                const skillDef = MONSTER_SKILLS[skillKey];
-                if (skillDef && Math.random() < (skillDef.rate || 1.0)) {
-                    addLog(`⚠️ <b>${enemy.name} 使用了 [${skillDef.name}]！</b>`);
-                    const finalTarget = skillDef.targetSelf ? enemy : target;
-                    const msg = skillDef.perform(enemy, finalTarget);
-                    addLog(msg);
-                    skillUsed = true;
-                }
-            }
+        const skillDef = plannedActions[i];
+        const skillUsed = Boolean(skillDef);
+        if (skillDef) {
+            addLog({ type: 'skill', message: `⚠️ <b>${enemy.name} 使用了 [${skillDef.name}]！</b>` });
+            const finalTarget = skillDef.targetSelf ? enemy : target;
+            const msg = executeMonsterSkillEffect(skillDef.effectId, enemy, finalTarget);
+            addLog({ type: 'combat', message: msg });
         }
 
         if (!skillUsed) {
@@ -244,8 +293,9 @@ function enemyTurn() {
                 addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
                 
                 if (aAffix && aAffix.effect === 'thorns') {
-                    enemy.hp -= 1;
+                    damageEnemy(1);
                     addLog(`🌵 [荆棘] 铠甲反弹了 1 点伤害！`);
+                    if (checkWin()) return;
                 }
 
             } else {
@@ -257,11 +307,30 @@ function enemyTurn() {
 }
 
 function checkWin() {
-  const enemy = combatState.enemy;
-  const isWin = (combatState.type === 'group' && enemy.count <= 0) || 
-                (combatState.type === 'boss' && enemy.hp <= 0);
+  const isWin = isEnemyDefeated();
   if (isWin) { endCombat(true); return true; }
   return false;
+}
+
+function handlePartyDefeat(source = 'unknown') {
+  if (gameState === 'GAMEOVER') return false;
+
+  combatState.active = false;
+  party.forEach(p => p.status = []);
+  activeEvent = null;
+  gameState = 'GAMEOVER';
+  addLog(`💀 队伍全灭...`);
+
+  if (window.LegacySystem) {
+      const kills = window.runStats ? window.runStats.kills : 0;
+      const shards = window.LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, kills, false);
+      addLog(`👻 你的灵魂飘向了英灵殿... (获得 ${shards} 碎片)`);
+  }
+
+  if (typeof clearAutoSave === 'function') clearAutoSave();
+
+  updateUI();
+  return true;
 }
 
 function endCombat(win) {
@@ -294,15 +363,8 @@ function endCombat(win) {
     }
     
   } else {
-    addLog(`💀 队伍全灭...`);
-    gameState = 'GAMEOVER';
-    
-    // --- 失败时依然自动结算 ---
-    if (window.LegacySystem) {
-        const kills = window.runStats ? window.runStats.kills : 0;
-        const shards = LegacySystem.calculateAndAwardShards(window.worldLevel, inventory.gold, kills, false);
-        addLog(`👻 你的灵魂飘向了英灵殿... (获得 ${shards} 碎片)`);
-    }
+    handlePartyDefeat('combat');
+    return;
   }
   updateUI();
 }
@@ -331,6 +393,7 @@ function tryFlee() {
         const target = randomAliveCharacter();
         if (target) { target.hp -= 1; addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); }
         party.forEach(p => p.status = []); 
+        combatState.active = false;
         gameState = 'EXPLORING'; updateUI();
       } else {
         addLog(`逃跑失败！敌人截住了退路。`);
@@ -409,8 +472,10 @@ window.handleEventChoice = function(optionIndex) {
     else if (option.type === 'tank_damage') {
         const tank = party.find(p => (option.validClasses.includes(p.class)) && p.hp > 0);
         if (tank) {
-            tank.hp -= option.damage;
-            addLog(`${tank.name} 挺身而出挡住了伤害 (-${option.damage} HP)。`); endEvent();
+            tank.hp = Math.max(0, tank.hp - option.damage);
+            addLog(`${tank.name} 挺身而出挡住了伤害 (-${option.damage} HP)。`);
+            if (!randomAliveCharacter()) handlePartyDefeat('event');
+            else endEvent();
         } else { alert("没有活着的肉盾！"); }
     }
     else if (option.type === 'roll_check') {
@@ -420,7 +485,7 @@ window.handleEventChoice = function(optionIndex) {
             else {
                 addLog(`(🎲 ${roll}) ${option.failMsg}`);
                 party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - option.failDamage); });
-                if (!randomAliveCharacter()) { gameState = 'GAMEOVER'; updateUI(); return; }
+                if (!randomAliveCharacter()) { handlePartyDefeat('event'); return; }
             } endEvent();
         });
     }
@@ -428,7 +493,11 @@ window.handleEventChoice = function(optionIndex) {
         rollDiceAnim([{label:"运气测试", id:"gamble"}], (results) => {
             const roll = results['gamble'];
             if (roll === 6) { addLog(`(🎲 6) 机关打开，里面有宝藏！`); gainLoot('item'); } 
-            else if (roll === 1) { addLog(`(🎲 1) 轰隆！你触动了陷阱！`); party.forEach(p => p.hp = Math.max(0, p.hp - 2)); } 
+            else if (roll === 1) {
+                addLog(`(🎲 1) 轰隆！你触动了陷阱！`);
+                party.forEach(p => p.hp = Math.max(0, p.hp - 2));
+                if (!randomAliveCharacter()) { handlePartyDefeat('event'); return; }
+            }
             else { addLog(`(🎲 ${roll}) 什么也没发生。`); }
             endEvent();
         });
@@ -449,7 +518,9 @@ window.handleEventChoice = function(optionIndex) {
 
 function endEvent() {
     if (gameState === 'GAMEOVER') return;
+    if (!randomAliveCharacter()) { handlePartyDefeat('event'); return; }
     if (dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
+    activeEvent = null;
     gameState = 'EXPLORING';
     updateUI();
 }
@@ -467,7 +538,7 @@ window.performSearch = function() {
         if (roll === 1) {
             addLog("⚠️ 糟糕！触发了隐蔽的机关！全员受到 1 点伤害！");
             party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - 1); });
-            if (!randomAliveCharacter()) { addLog("队伍全灭..."); gameState = 'GAMEOVER'; }
+            if (!randomAliveCharacter()) { handlePartyDefeat('search'); return; }
         } 
         else if (roll === 6) { addLog("✨ 运气不错！你在角落里发现了一个暗格。"); gainLoot('item'); } 
         else if (roll >= 4) { addLog("你在废墟下找到了一些零散的金币。"); gainLoot('gold'); } 

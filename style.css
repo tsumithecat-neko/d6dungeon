@@ -88,9 +88,21 @@ main {
   line-height: 25px;
 }
 
-#logContent div {
+#logContent .log-entry {
   padding: 0 5px;
+  border-left: 3px solid transparent;
 }
+
+.log-info { color: #424242; }
+.log-combat { color: #bf360c; border-left-color: #ff8a65 !important; }
+.log-skill { color: #6a1b9a; border-left-color: #ba68c8 !important; }
+.log-intent { color: #e65100; background: #fff3e0; border-left-color: #fb8c00 !important; font-weight: bold; }
+.log-danger, .log-error { color: #b71c1c; border-left-color: #e53935 !important; }
+.log-warning { color: #f57f17; border-left-color: #fbc02d !important; }
+.log-reward { color: #1b5e20; border-left-color: #43a047 !important; }
+.log-heal { color: #00695c; border-left-color: #26a69a !important; }
+.log-encounter { color: #0d47a1; border-left-color: #42a5f5 !important; }
+.log-system { color: #4527a0; border-left-color: #7e57c2 !important; }
 
 /* 按钮样式 */
 button {
@@ -192,6 +204,74 @@ button:disabled { border-color: #ccc; color: #ccc; box-shadow: none; cursor: not
 
 @media (max-width: 900px){
   main { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 8px;
+    padding-bottom: calc(46vh + env(safe-area-inset-bottom, 0px));
+  }
+
+  header h1 {
+    font-size: 1.35rem;
+    margin: 4px 0 10px;
+  }
+
+  main, #left-panel, #hud {
+    gap: 10px;
+  }
+
+  #party, #inventoryPanel, #log {
+    padding: 10px;
+  }
+
+  #party h2, #inventoryPanel h2, #log h2 {
+    margin-top: 0;
+    font-size: 1.15rem;
+  }
+
+  #map {
+    border-width: 2px;
+    box-shadow: 2px 2px 0 rgba(0,0,0,0.1);
+  }
+
+  #logContent {
+    height: 130px;
+    font-size: 0.82em;
+    line-height: 22px;
+  }
+
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    max-height: 46vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 10px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-top: 3px solid var(--ink-color);
+    box-shadow: 0 -5px 18px rgba(0,0,0,0.2);
+  }
+
+  #controls button {
+    min-height: 44px;
+  }
+
+  #diceContainer {
+    width: calc(100% - 24px);
+    max-height: 78vh;
+    overflow-y: auto;
+    gap: 10px;
+  }
+
+  .die {
+    width: 48px;
+    height: 48px;
+  }
 }
 
 textarea {

@@ -15,38 +15,23 @@ window.STATUS_ICONS = {
 const MONSTER_SKILLS = {
     'poison_spit': { 
         name: "剧毒喷吐", desc: "造成1点伤害并施加中毒(3回合)", rate: 0.4, 
-        perform: (user, target) => {
-            target.hp -= 1; applyStatus(target, 'poison', 3);
-            return `${user.name} 喷出一口毒液！${target.name} 受伤并中毒了。`;
-        }
+        effectId: 'monster_poison_spit'
     },
     'web_trap': {
         name: "蛛网缠绕", desc: "使目标眩晕(1回合)", rate: 0.3,
-        perform: (user, target) => {
-            applyStatus(target, 'stun', 1);
-            return `${user.name} 射出粘稠的蛛网，${target.name} 动弹不得！`;
-        }
+        effectId: 'monster_web_trap'
     },
     'warcry': {
         name: "战吼", desc: "自身获得狂暴(3回合)", rate: 0.3, targetSelf: true,
-        perform: (user) => {
-            applyStatus(user, 'rage', 3);
-            return `${user.name} 发出震耳欲聋的咆哮，进入了狂暴状态！`;
-        }
+        effectId: 'monster_warcry'
     },
     'curse': {
         name: "虚弱诅咒", desc: "使目标虚弱(3回合)", rate: 0.4,
-        perform: (user, target) => {
-            applyStatus(target, 'weak', 3);
-            return `${user.name} 念出亵渎的咒语，${target.name} 感到力量流失了。`;
-        }
+        effectId: 'monster_curse'
     },
     'smash': {
         name: "重击", desc: "造成2点强力伤害", rate: 0.5,
-        perform: (user, target) => {
-            target.hp -= 2;
-            return `${user.name} 蓄力重击！${target.name} 受到了 2 点伤害！`;
-        }
+        effectId: 'monster_smash'
     }
 };
 
@@ -169,77 +154,27 @@ const RACES = {
 const CLASS_SKILLS = {
     warrior: {
         name: "强力横扫", cost: 1, desc: "消耗1体力，对敌人造成必中的 2 点伤害。",
-        effect: (user, battleState) => {
-            const dmg = 2;
-            if (battleState.type === 'group') {
-                battleState.enemy.count = Math.max(0, battleState.enemy.count - dmg);
-                return `${user.name} 挥舞武器横扫，击倒了 2 个敌人！`;
-            } else {
-                battleState.enemy.hp -= dmg;
-                return `${user.name} 重重地劈砍，对 ${battleState.enemy.name} 造成 2 点伤害！`;
-            }
-        }
+        effectId: 'skill_warrior_sweep'
     },
     rogue: {
         name: "弱点背刺", cost: 1, desc: "消耗1技巧，造成致命一击（击杀1个敌人或对Boss造成2伤害）。",
-        effect: (user, battleState) => {
-             if (battleState.type === 'group') {
-                battleState.enemy.count--;
-                return `${user.name} 潜行到阴影中发动背刺，秒杀了一个敌人！`;
-            } else {
-                battleState.enemy.hp -= 2;
-                return `${user.name} 找到了弱点，狠狠刺入！(2伤害)`;
-            }
-        }
+        effectId: 'skill_rogue_backstab'
     },
     wizard: {
         name: "爆裂火球", cost: 2, desc: "消耗2法力，随机消灭 d6 个小怪或对Boss造成 3 点伤害。",
-        effect: (user, battleState) => {
-            const roll = Math.floor(Math.random()*6)+1;
-            if (battleState.type === 'group') {
-                const kills = roll;
-                battleState.enemy.count = Math.max(0, battleState.enemy.count - kills);
-                return `${user.name} 咏唱咒语扔出火球，炸飞了 ${kills} 个敌人！`;
-            } else {
-                battleState.enemy.hp -= 3;
-                return `${user.name} 的火球术直接命中，造成 3 点爆发伤害！`;
-            }
-        }
+        effectId: 'skill_wizard_fireball'
     },
     cleric: {
         name: "神圣治愈", cost: 2, desc: "消耗2信仰，为生命值最低的队友恢复 4 点 HP。",
-        effect: (user, battleState) => {
-            let target = party.sort((a,b) => a.hp - b.hp)[0];
-            const healAmt = 4;
-            target.hp = Math.min(target.maxHp, target.hp + healAmt); 
-            return `${user.name} 祈祷神恩，${target.name} 的伤口愈合了 (+${healAmt} HP)。`;
-        }
+        effectId: 'skill_cleric_heal'
     },
     paladin: {
         name: "圣佑打击", cost: 2, desc: "消耗2信仰，造成2点伤害，并为自己恢复2点HP。",
-        effect: (user, battleState) => {
-            if (battleState.type === 'group') {
-                battleState.enemy.count = Math.max(0, battleState.enemy.count - 2);
-            } else {
-                battleState.enemy.hp -= 2;
-            }
-            const heal = 2;
-            const oldHp = user.hp;
-            user.hp = Math.min(user.maxHp, user.hp + heal);
-            return `${user.name} 沐浴着圣光挥剑！造成伤害并恢复了 ${user.hp - oldHp} 点生命。`;
-        }
+        effectId: 'skill_paladin_smite'
     },
     ranger: {
         name: "双重射击", cost: 2, desc: "消耗2体力，发动两次攻击（共造成2点伤害）。",
-        effect: (user, battleState) => {
-            if (battleState.type === 'group') {
-                battleState.enemy.count = Math.max(0, battleState.enemy.count - 2);
-                return `${user.name} 快速射出两箭，精准地干掉了 2 个敌人！`;
-            } else {
-                battleState.enemy.hp -= 2;
-                return `${user.name} 的连珠箭全部命中目标！(2伤害)`;
-            }
-        }
+        effectId: 'skill_ranger_double_shot'
     }
 };
 
@@ -253,23 +188,8 @@ const CLASS_GROWTH = {
 };
 
 const ITEM_TYPES = {
-  potion: { name: "治疗药水", type: "consumable", desc: "恢复4点HP", effect: (target) => { 
-      target.hp = Math.min(target.hp + 4, target.maxHp); 
-      addLog(`${target.name} 喝下药水，恢复了生命。(HP: ${target.hp})`);
-      return true;
-  }},
-  scroll: { name: "闪电卷轴", type: "combat", desc: "对所有敌人造成1点伤害", effect: () => {
-      if(gameState !== 'COMBAT' || !combatState.active) { addLog("只能在战斗中使用！"); return false; }
-      if(combatState.type === 'group') {
-          combatState.enemy.count = 0; 
-          addLog("闪电链在敌群中跳跃，瞬间清除了所有小怪！");
-      } else {
-          combatState.enemy.hp -= 2;
-          addLog(`闪电击中 ${combatState.enemy.name}，造成 2 点伤害！`);
-      }
-      updateUI();
-      return true;
-  }},
+  potion: { name: "治疗药水", type: "consumable", desc: "恢复4点HP", effectId: 'item_heal_4' },
+  scroll: { name: "闪电卷轴", type: "combat", desc: "对所有敌人造成1点伤害", effectId: 'item_chain_lightning' },
   gem: { name: "红宝石", type: "treasure", desc: "价值 10 金币", value: 10 }
 };
 

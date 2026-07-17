@@ -30,6 +30,9 @@ const inventory = {
   items: [] 
 };
 
+// 结构化冒险日志（仅保留最近 200 条）
+const adventureLog = [];
+
 // 全局难度与商店
 window.worldLevel = 1; 
 window.shopStock = [];
