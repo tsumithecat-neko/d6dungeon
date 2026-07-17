@@ -1,7 +1,7 @@
 // inventory.js - 背包与城镇服务
 
 // --- 随机装备生成逻辑 ---
-function generateLoot(type, level) {
+function generateLoot(type, level, forceAffix = false) {
     let pool = [];
     if (type === 'weapon') pool = GEAR_DATA.weapons;
     else pool = GEAR_DATA.armors;
@@ -13,7 +13,7 @@ function generateLoot(type, level) {
     item.id = Date.now() + Math.random();
 
     // 40% 几率出现词缀
-    if (Math.random() < 0.4) {
+    if (forceAffix || Math.random() < 0.4) {
         const affixPool = (type === 'weapon') ? WEAPON_AFFIXES : ARMOR_AFFIXES;
         const affix = affixPool[Math.floor(Math.random() * affixPool.length)];
         
@@ -37,6 +37,14 @@ function gainLoot(type) {
     const amt = d6() + d6();
     inventory.gold += amt;
     addLog(`你捡到了 ${amt} 枚金币。`);
+  } else if (type === 'elite') {
+    const gearType = Math.random() > 0.5 ? 'weapon' : 'armor';
+    const newItem = generateLoot(gearType, window.worldLevel + 1, true);
+    inventory.items.push(newItem);
+    const nameHtml = newItem.color
+        ? `<span style="color:${newItem.color}; font-weight:bold">${newItem.name}</span>`
+        : `<b>${newItem.name}</b>`;
+    addLog({ type: 'loot', message: `⚜️ 精英战利品：${nameHtml}（必带词缀）` });
   } else if (type === 'item') {
     const roll = d6();
     let newItem;

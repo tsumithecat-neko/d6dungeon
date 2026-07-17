@@ -6,6 +6,7 @@ function randomFrom(arr){ return arr[Math.floor(Math.random()*arr.length)] }
 function arrow(d){ return {up:'↑',down:'↓',left:'←',right:'→'}[d] }
 
 function inferLogType(message) {
+  if (message.includes('主线') || message.includes('结局') || message.includes('线索') || message.includes('王座')) return 'story';
   if (message.includes('意图') || message.includes('准备')) return 'intent';
   if (message.includes('全灭') || message.includes('失败') || message.includes('阵亡')) return 'danger';
   if (message.includes('胜利') || message.includes('获得') || message.includes('升级')) return 'reward';
@@ -108,7 +109,7 @@ function collectSaveData() {
         : null;
 
     return {
-        version: 1.3,
+        version: 1.6,
         timestamp: Date.now(),
         party: party,
         dungeon: dungeon,
@@ -117,11 +118,14 @@ function collectSaveData() {
         playerRoomId: playerRoomId,
         combatState: combatState,
         activeEventKey: activeEventKey || null,
+        activeEvent: activeEvent,
         shopStock: window.shopStock || [],
         logEntries: adventureLog,
         // 新增属性：如果存在则保存
         worldLevel: window.worldLevel || 1,
         runStats: window.runStats || { kills: 0 },
+        storyState: window.storyState || null,
+        questState: window.questState || null,
         legacy: window.LegacySystem ? window.LegacySystem.data : null
     };
 }
@@ -235,7 +239,12 @@ function importSaveGame(data) {
     try {
         // --- 基础数据恢复 ---
         party.length = 0;
-        if (data.party) data.party.forEach(p => party.push(p));
+        if (data.party) data.party.forEach(p => {
+            p.skillLevel = Math.max(0, Math.min(3, p.skillLevel || 0));
+            if (!Array.isArray(p.status)) p.status = [];
+            if (!p.equipment) p.equipment = { weapon: null, armor: null };
+            party.push(p);
+        });
 
         for (let key in dungeon) delete dungeon[key];
         Object.assign(dungeon, data.dungeon || {});
@@ -246,14 +255,23 @@ function importSaveGame(data) {
         gameState = data.gameState || 'CREATION';
         playerRoomId = data.playerRoomId || 'start_room';
         
-        Object.assign(combatState, data.combatState || { active: false });
+        Object.assign(combatState, {
+            active: false, type: null, enemy: null, round: 0,
+            actedIndices: [], defendingIndices: [], enemyIntent: []
+        }, data.combatState || {});
+        if (!Array.isArray(combatState.actedIndices)) combatState.actedIndices = [];
+        if (!Array.isArray(combatState.defendingIndices)) combatState.defendingIndices = [];
+        if (!Array.isArray(combatState.enemyIntent)) combatState.enemyIntent = [];
         if (combatState.enemy) {
             if (combatState.type === 'group' && !combatState.enemy.maxCount) combatState.enemy.maxCount = combatState.enemy.count;
-            if (combatState.type === 'boss' && !combatState.enemy.maxHp) combatState.enemy.maxHp = combatState.enemy.hp;
+            if (combatState.type !== 'group' && !combatState.enemy.maxHp) combatState.enemy.maxHp = combatState.enemy.hp;
         }
 
         const eventKey = data.activeEventKey || dungeon[playerRoomId]?.encounter?.subtype;
-        activeEvent = gameState === 'EVENT' && eventKey ? EVENT_DEFINITIONS[eventKey] || null : null;
+        activeEvent = gameState === 'EVENT' ? (data.activeEvent || (eventKey ? EVENT_DEFINITIONS[eventKey] : null)) : null;
+        if (gameState === 'COMBAT' && combatState.active && combatState.enemyIntent.length === 0 && typeof planEnemyTurn === 'function') {
+            planEnemyTurn();
+        }
         window.shopStock = (data.shopStock || []).map(rehydrateItem);
         if (gameState === 'TOWN' && window.shopStock.length === 0 && typeof window.generateShopItems === 'function') {
             window.generateShopItems();
@@ -270,6 +288,8 @@ function importSaveGame(data) {
         // --- 新增属性的兼容性处理 ---
         window.worldLevel = data.worldLevel || 1;
         window.runStats = data.runStats || { kills: 0 };
+        if (typeof restoreStoryState === 'function') restoreStoryState(data.storyState, window.worldLevel);
+        if (typeof restoreQuestState === 'function') restoreQuestState(data.questState);
 
         // 恢复英灵殿数据 (如果存档里没有，保持现有数据，或者重置为初始值)
         if (window.LegacySystem && data.legacy) {

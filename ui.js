@@ -108,8 +108,13 @@ function drawMap(){
       let icon = '';
       if(r.encounter.main=='monster') icon='💀';
       if(r.encounter.main=='boss') icon='👹';
+      if(r.encounter.main=='elite') icon='⚜️';
       if(r.encounter.main=='treasure') icon='💎';
-      if(r.encounter.main=='event') icon='❓';
+      if(r.encounter.main=='event') {
+        if (r.encounter.subtype === '营火') icon='🔥';
+        else if (r.encounter.subtype?.startsWith('剧情·')) icon='📜';
+        else icon='❓';
+      }
       ctx.fillText(icon, cx, cy);
       ctx.globalAlpha = 1;
     }

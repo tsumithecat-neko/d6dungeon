@@ -82,6 +82,16 @@ const EVENT_DEFINITIONS = {
     }
 };
 
+EVENT_DEFINITIONS['营火'] = {
+    title: "🔥 安静的营火",
+    desc: "火焰驱散了地牢的寒意。队伍可以在这里休整，或让一名成员磨炼自己的职业技能。",
+    options: [
+        { label: "🛏️ 扎营休息", desc: "恢复所有存活成员的全部 HP 与 MP。", type: "camp_heal" },
+        { label: "📖 磨炼技能", desc: "选择一名成员，使其职业技能永久升级（最高 4 级）。", type: "choose_skill_upgrade" },
+        { label: "👋 熄火离开", desc: "保留现在的状态，继续探索。", type: "leave" }
+    ]
+};
+
 // --- 怪物池 ---
 const MONSTER_POOLS = {
   minion: [ 

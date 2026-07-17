@@ -35,6 +35,7 @@ window.addCharacter = function(raceKey, classKey, customName) {
         class: classKey, race: raceKey,
         hp: finalHp, maxHp: finalHp, mp: finalMp, maxMp: finalMp,
         att: finalAtt, lvl: 1, xp: 0, maxXp: 10,
+        skillLevel: 0,
         equipment: { weapon: null, armor: null },
         status: [] 
     };
@@ -53,7 +54,8 @@ window.startGame = function() {
     window.worldLevel = 1;
     
     // --- 新增：初始化运行统计 ---
-    window.runStats = { kills: 0 }; 
+    window.runStats = { kills: 0 };
+    if (typeof resetQuestState === 'function') resetQuestState();
 
     // --- 新增：应用英灵殿加成 ---
     if (window.LegacySystem) {
@@ -70,8 +72,9 @@ window.startGame = function() {
         startRoom.absX = 0; startRoom.absY = 0; startRoom.id = 'start_room';
         dungeon['start_room'] = startRoom;
         playerRoomId = 'start_room';
-        
+
         gameState = 'EXPLORING';
+        if (typeof beginDungeonStory === 'function') beginDungeonStory(window.worldLevel);
         updateUI();
         addLog("队伍集结完毕。你们站在古老地牢的入口，火把照亮了通往黑暗的第一步...");
     } else {
@@ -91,6 +94,7 @@ window.enterTown = function() {
     gameState = 'TOWN';
     party.forEach(p => p.status = []);
     if(window.generateShopItems) window.generateShopItems();
+    if (typeof ensureQuestBoard === 'function') ensureQuestBoard();
     addLog(`🚩 英雄们满载而归，回到了城镇。当前世界等级: Lv.${window.worldLevel}`);
     
     // 进城也可以视为一种胜利结算节点，这里简单处理，只在全灭或主动退役时结算碎片
@@ -98,7 +102,11 @@ window.enterTown = function() {
 };
 
 window.startNextRun = function() {
-    window.worldLevel++; 
+    const nextLayer = window.worldLevel + 1;
+    const expiringQuests = window.questState?.active?.filter(quest => quest.layer < nextLayer) || [];
+    if (expiringQuests.length > 0 && !confirm(`还有 ${expiringQuests.length} 个本层任务尚未交付，进入下一层后将永久失效。仍要继续吗？`)) return;
+    if (typeof startQuestLayer === 'function') startQuestLayer(nextLayer);
+    window.worldLevel++;
     for(let key in dungeon) delete dungeon[key];
     combatState.active = false;
     
@@ -114,6 +122,7 @@ window.startNextRun = function() {
         });
 
         gameState = 'EXPLORING';
+        if (typeof beginDungeonStory === 'function') beginDungeonStory(window.worldLevel);
         addLog(`⚔️ 再次踏入黑暗... 敌人变得更强了 (Lv.${window.worldLevel})！`);
         updateUI();
     }

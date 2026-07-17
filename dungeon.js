@@ -33,7 +33,8 @@ function checkCollision(targetBounds) {
 function createRoom(type, isConnector = false){
   let roll, shapeData;
   const roomCount = Object.keys(dungeon).length;
-  const forceBoss = (!type && !isConnector && roomCount > 12);
+  const storyAllowsBoss = !window.storyState || window.storyState.chapter >= 2;
+  const forceBoss = (!type && !isConnector && roomCount > 12 && storyAllowsBoss);
 
   if (type === 'start') {
     roll = 6; 
@@ -45,6 +46,7 @@ function createRoom(type, isConnector = false){
   } else if (type === 'connector_v2') { shapeData = JSON.parse(JSON.stringify(CONNECTOR_CORRIDORS.vert_2));
   } else {
     if (forceBoss) { roll = 19; } else { roll = d10() + d10(); }
+    if (roll === 19 && !storyAllowsBoss) roll = 18;
     shapeData = JSON.parse(JSON.stringify(ROOM_TABLE[roll]));
   }
   
@@ -68,25 +70,33 @@ function createRoom(type, isConnector = false){
 function generateEncounter(roomType){
   if (roomType === 'boss_room') {
       const pool = MONSTER_POOLS['boss'];
-      const pick = pool[Math.floor(Math.random()*pool.length)];
-      return { main: 'boss', template: JSON.parse(JSON.stringify(pick)) };
+      const pick = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+      pick.category = 'boss';
+      return { main: 'boss', template: pick };
   }
 
   const r = d6();
   if (r <= 2) { 
     const sub = (d6() <= 4) ? 'minion' : 'beast';
     const pool = MONSTER_POOLS[sub];
-    const pick = pool[Math.floor(Math.random()*pool.length)];
-    return { main: 'monster', subtype: sub, template: JSON.parse(JSON.stringify(pick)) };
+    const pick = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+    pick.category = sub;
+    return { main: 'monster', subtype: sub, template: pick };
   }
   if (r === 3) return { main: 'event', subtype: randomFrom(['陷阱','祭坛','谜题']) };
   if (r === 4) return { main: 'treasure', subtype: randomFrom(['金币','宝石','魔法卷轴']) };
-  if (r === 5) return { main: 'special', subtype: '空房间' };
-  
+  if (r === 5) return Math.random() < 0.6
+      ? { main: 'event', subtype: '营火' }
+      : { main: 'special', subtype: '空房间' };
+
   const pool = MONSTER_POOLS['beast'];
   const pick = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
-  pick.name = "游荡的 " + pick.name; 
-  return { main: 'monster', subtype: 'beast', template: pick };
+  pick.name = "精英·" + pick.name;
+  pick.hp = Math.max(6, (pick.count || 1) * 4);
+  pick.att = (pick.att || 0) + 1;
+  pick.category = 'beast';
+  delete pick.count;
+  return { main: 'elite', subtype: '精英', template: pick };
 }
 
 // --- 核心交互逻辑 ---
@@ -109,6 +119,8 @@ function openDoor(dir){
   playerRoomId = nextRoomId;
   const currentRoom = dungeon[playerRoomId];
   currentRoom.visited = true;
+
+  if (typeof storyOnRoomEntered === 'function') storyOnRoomEntered(currentRoom);
 
   if (!currentRoom._encounterResolved) {
       if (window.resolveEncounter) window.resolveEncounter(currentRoom);

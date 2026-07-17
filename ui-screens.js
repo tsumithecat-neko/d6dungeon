@@ -100,6 +100,8 @@ function renderTownShop() {
     header.style.textAlign = 'center'; header.style.marginTop = '0';
     container.appendChild(header);
 
+    if (typeof renderQuestBoard === 'function') renderQuestBoard(container);
+
     // --- 新增：按钮组 ---
     const btnGroup = document.createElement('div');
     btnGroup.style.display = 'flex';
@@ -209,7 +211,8 @@ function renderTownShop() {
         let nameHtml = item.name;
         if (item.color) nameHtml = `<span style="color:${item.color}; font-weight:bold">${item.name}</span>`;
 
-        row.innerHTML = `<div style="line-height:1.1"><div>${nameHtml}</div><div style="font-size:0.75em; color:#666">${desc}</div></div>`;
+        const comparison = typeof getBestEquipmentComparison === 'function' ? getBestEquipmentComparison(item) : '';
+        row.innerHTML = `<div style="line-height:1.1"><div>${nameHtml}</div><div style="font-size:0.75em; color:#666">${desc}</div>${comparison ? `<div style="font-size:0.72em; color:${comparison.includes('暂无') ? '#888' : '#2e7d32'}">${comparison}</div>` : ''}</div>`;
         
         const buyBtn = document.createElement('button');
         buyBtn.textContent = `${item.cost} G`;

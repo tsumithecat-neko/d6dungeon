@@ -15,10 +15,12 @@ let gameState = 'CREATION';
 // 战斗状态
 let combatState = {
   active: false,
-  type: null, 
-  enemy: null, 
+  type: null,
+  enemy: null,
   round: 0,
-  actedIndices: [] 
+  actedIndices: [],
+  defendingIndices: [],
+  enemyIntent: []
 };
 
 // 当前激活的互动事件

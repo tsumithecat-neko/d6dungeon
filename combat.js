@@ -17,11 +17,17 @@ function initCombat(template, type) {
   if (type === 'group') {
     if (!enemyData.count) enemyData.count = 1;
     addLog(`⚔️ 敌人出现 (Lv.${window.worldLevel})！${enemyData.name} x${enemyData.count} (ATK: ${enemyData.att})`);
-  } else {
+  } else if (type === 'boss') {
     addLog(`💀 首领降临 (Lv.${window.worldLevel})！${enemyData.name} (HP: ${enemyData.hp}, ATK: ${enemyData.att})`);
+  } else {
+    addLog(`⚜️ 精英挡住了去路 (Lv.${window.worldLevel})！${enemyData.name} (HP: ${enemyData.hp}, ATK: ${enemyData.att})`);
   }
 
-  combatState = { active: true, type: type, enemy: enemyData, round: 1, actedIndices: [] };
+  combatState = {
+    active: true, type: type, enemy: enemyData, round: 1,
+    actedIndices: [], defendingIndices: [], enemyIntent: []
+  };
+  planEnemyTurn();
   
   // 战斗开始词缀 (狂暴)
   party.forEach(p => {
@@ -38,6 +44,9 @@ function recordEnemyKills(amount) {
     if (kills === 0) return;
     if (!window.runStats) window.runStats = { kills: 0 };
     window.runStats.kills = (window.runStats.kills || 0) + kills;
+    if (typeof updateQuestProgress === 'function') {
+        updateQuestProgress('hunt', kills, { category: combatState.enemy?.category, enemyName: combatState.enemy?.name });
+    }
 }
 
 function isEnemyDefeated() {
@@ -65,6 +74,71 @@ function damageEnemy(amount) {
     if (before > 0 && enemy.hp === 0) recordEnemyKills(1);
     return before - enemy.hp;
 }
+
+function damageCharacter(target, amount) {
+    const rawDamage = Math.max(0, Math.floor(amount || 0));
+    if (!target || rawDamage === 0) return 0;
+    const targetIndex = party.indexOf(target);
+    const isDefending = targetIndex >= 0 && combatState.defendingIndices?.includes(targetIndex);
+    const finalDamage = isDefending ? Math.floor(rawDamage / 2) : rawDamage;
+    target.hp = Math.max(0, target.hp - finalDamage);
+    if (isDefending && finalDamage < rawDamage) {
+        addLog({ type: 'combat', message: `🛡️ ${target.name} 的防御将伤害从 ${rawDamage} 降至 ${finalDamage}。` });
+    }
+    return finalDamage;
+}
+
+function getIntentBaseDamage(skillKey) {
+    if (skillKey === 'smash') return 2;
+    if (skillKey === 'poison_spit') return 1;
+    return skillKey ? 0 : 1;
+}
+
+function getEnemyIntentDamage(intent) {
+    const baseDamage = Math.max(0, intent?.estimatedDamage || 0);
+    return combatState.defendingIndices?.includes(intent?.targetIndex) ? Math.floor(baseDamage / 2) : baseDamage;
+}
+
+function planEnemyTurn() {
+    if (!combatState.active || !combatState.enemy) return [];
+    const enemy = combatState.enemy;
+    const aliveIndices = party.map((member, index) => member.hp > 0 ? index : -1).filter(index => index >= 0);
+    if (aliveIndices.length === 0) return (combatState.enemyIntent = []);
+    const attacks = combatState.type === 'group' ? Math.min(enemy.count, 3) : 2;
+    combatState.enemyIntent = Array.from({ length: Math.max(0, attacks) }, () => {
+        let skillKey = null;
+        if (enemy.skills?.length) {
+            const skillChance = combatState.type === 'boss' ? 0.5 : 0.3;
+            if (Math.random() < skillChance) {
+                const candidate = randomFrom(enemy.skills);
+                const skillDef = MONSTER_SKILLS[candidate];
+                if (skillDef && Math.random() < (skillDef.rate || 1)) skillKey = candidate;
+            }
+        }
+        const skillDef = skillKey ? MONSTER_SKILLS[skillKey] : null;
+        return {
+            skillKey,
+            targetIndex: skillDef?.targetSelf ? null : randomFrom(aliveIndices),
+            label: skillDef?.name || '普通攻击',
+            estimatedDamage: getIntentBaseDamage(skillKey)
+        };
+    });
+    return combatState.enemyIntent;
+}
+
+window.defendCharacter = function(charIndex) {
+    if (gameState !== 'COMBAT' || !combatState.active) return;
+    const member = party[charIndex];
+    if (!member || member.hp <= 0 || combatState.actedIndices.includes(charIndex)) return;
+    if (member.status?.some(status => status.type === 'stun')) {
+        addLog({ type: 'warning', message: `${member.name} 正在眩晕，无法防御。` });
+        return;
+    }
+    combatState.actedIndices.push(charIndex);
+    if (!combatState.defendingIndices.includes(charIndex)) combatState.defendingIndices.push(charIndex);
+    addLog({ type: 'combat', message: `🛡️ ${member.name} 摆出防御姿态，本回合受到的直接伤害减半。` });
+    updateUI();
+};
 
 // --- 状态与辅助函数 ---
 function applyStatus(target, type, duration) {
@@ -172,7 +246,9 @@ function fightRound() {
       if (!randomAliveCharacter()) { endCombat(false); return; }
       enemyTurn();
       combatState.round++;
-      combatState.actedIndices = []; 
+      combatState.actedIndices = [];
+      combatState.defendingIndices = [];
+      if (combatState.active) planEnemyTurn();
       updateUI();
   };
 
@@ -183,8 +259,7 @@ function fightRound() {
       let hits = 0;
       
       activePartyMembers.forEach((p) => {
-          const isEnemyDead = (combatState.type === 'group' && enemy.count <= 0) || 
-                              (combatState.type === 'boss' && enemy.hp <= 0);
+          const isEnemyDead = isEnemyDefeated();
           if (!combatState.active || isEnemyDead) return;
 
           const idx = party.indexOf(p);
@@ -231,8 +306,7 @@ function fightRound() {
           }
       });
       
-      const isEnemyDeadNow = (combatState.type === 'group' && enemy.count <= 0) || 
-                             (combatState.type === 'boss' && enemy.hp <= 0);
+      const isEnemyDeadNow = isEnemyDefeated();
       if (hits === 0 && !isEnemyDeadNow) addLog("普攻未能造成有效打击！");
 
       finishTurn(); 
@@ -243,32 +317,23 @@ function enemyTurn() {
     const enemy = combatState.enemy;
     const canAct = processStatusEffects(enemy);
     if (isEnemyDefeated()) { endCombat(true); return; }
-    if (!canAct) return; 
+    if (!canAct) return;
 
-    const attacks = (combatState.type === 'group') ? Math.min(enemy.count, 3) : 2;
-    const plannedActions = Array.from({ length: attacks }, () => {
-        if (!enemy.skills || enemy.skills.length === 0) return null;
-        const skillChance = combatState.type === 'boss' ? 0.5 : 0.3;
-        if (Math.random() >= skillChance) return null;
-        const skillKey = randomFrom(enemy.skills);
-        const skillDef = MONSTER_SKILLS[skillKey];
-        return skillDef && Math.random() < (skillDef.rate || 1.0) ? skillDef : null;
-    });
-
-    const intentCounts = new Map();
-    plannedActions.forEach(skill => {
-        const label = skill ? skill.name : '普通攻击';
-        intentCounts.set(label, (intentCounts.get(label) || 0) + 1);
-    });
-    const intentText = Array.from(intentCounts.entries()).map(([label, count]) => `${label} ×${count}`).join('、');
+    const plannedActions = combatState.enemyIntent?.length ? combatState.enemyIntent : planEnemyTurn();
+    const intentText = plannedActions.map(action => {
+        const target = action.targetIndex === null ? enemy : party[action.targetIndex];
+        return `${action.label} → ${target?.name || '未知目标'}（预计 ${getEnemyIntentDamage(action)} 伤害）`;
+    }).join('；');
     addLog({ type: 'intent', message: `👁️ <b>${enemy.name} 的意图：</b>${intentText}` });
     addLog({ type: 'combat', message: '敌人开始行动...' });
 
-    for (let i = 0; i < attacks; i++) {
-        const target = randomAliveCharacter();
-        if (!target) break; 
-        
-        const skillDef = plannedActions[i];
+    for (let i = 0; i < plannedActions.length; i++) {
+        const action = plannedActions[i];
+        let target = action.targetIndex === null ? enemy : party[action.targetIndex];
+        if (target !== enemy && (!target || target.hp <= 0)) target = randomAliveCharacter();
+        if (!target) break;
+
+        const skillDef = action.skillKey ? MONSTER_SKILLS[action.skillKey] : null;
         const skillUsed = Boolean(skillDef);
         if (skillDef) {
             addLog({ type: 'skill', message: `⚠️ <b>${enemy.name} 使用了 [${skillDef.name}]！</b>` });
@@ -289,8 +354,8 @@ function enemyTurn() {
             const roll = d6();
             const attBonus = enemy.att + getStatusBonus(enemy, 'att');
             if (roll + attBonus >= TO_HIT_TARGET) {
-                target.hp -= 1;
-                addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-1 HP)`);
+                const damage = damageCharacter(target, 1);
+                addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-${damage} HP)`);
                 
                 if (aAffix && aAffix.effect === 'thorns') {
                     damageEnemy(1);
@@ -339,6 +404,8 @@ function endCombat(win) {
   
   if (win) {
     addLog(`🎉 战斗胜利！`);
+    if (typeof storyOnCombatWon === 'function') storyOnCombatWon(combatState.type, combatState.enemy);
+    if (typeof questOnCombatWon === 'function') questOnCombatWon(combatState.type, combatState.enemy);
     if(dungeon[playerRoomId]) dungeon[playerRoomId]._encounterResolved = true;
     
     // 如果是 BOSS 战
@@ -352,14 +419,19 @@ function endCombat(win) {
         updateUI(); 
         return; 
     } else {
-        const xpGain = 2;
+        const isElite = combatState.type === 'elite';
+        const xpGain = isElite ? 4 : 2;
         party.forEach(p => { if (p.hp > 0) gainXp(p, xpGain); });
 
         gameState = 'EXPLORING';
-        const lootRoll = d6();
-        if (lootRoll >= 5) gainLoot('item'); 
-        else if (lootRoll >= 3) gainLoot('gold'); 
-        else addLog("并没有发现什么有价值的东西。");
+        if (isElite) {
+            gainLoot('elite');
+        } else {
+            const lootRoll = d6();
+            if (lootRoll >= 5) gainLoot('item');
+            else if (lootRoll >= 3) gainLoot('gold');
+            else addLog("并没有发现什么有价值的东西。");
+        }
     }
     
   } else {
@@ -397,7 +469,12 @@ function tryFlee() {
         gameState = 'EXPLORING'; updateUI();
       } else {
         addLog(`逃跑失败！敌人截住了退路。`);
-        enemyTurn(); combatState.round++; combatState.actedIndices = []; updateUI();
+        enemyTurn();
+        combatState.round++;
+        combatState.actedIndices = [];
+        combatState.defendingIndices = [];
+        if (combatState.active) planEnemyTurn();
+        updateUI();
       }
   });
 }
@@ -414,6 +491,10 @@ window.resolveEncounter = function(room){
   else if (enc.main === 'boss') {
       addLog(`>>> 遭遇：${enc.main} ${enc.subtype||''} <<<`);
       initCombat(enc.template, 'boss'); return;
+  }
+  else if (enc.main === 'elite') {
+      addLog(`>>> 精英遭遇：${enc.template.name} <<<`);
+      initCombat(enc.template, 'elite'); return;
   }
   
   if (enc.main === 'treasure') {
@@ -452,10 +533,45 @@ window.handleEventChoice = function(optionIndex) {
     if (option.type === 'class_check' || option.type === 'auto_loot') {
         addLog(`专家出手，轻松搞定！`); gainLoot('item'); endEvent();
     }
+    else if (option.type === 'story_choice') {
+        if (typeof handleStoryChoice === 'function') handleStoryChoice(option);
+        endEvent();
+    }
     else if (option.type === 'heal_party') {
         addLog(`神圣的光芒照耀着队伍...`);
         party.forEach(p => { if(p.hp > 0) p.hp = Math.min(p.maxHp, p.hp + option.amount); });
         addLog(`全员恢复了 ${option.amount} 点生命。`); endEvent();
+    }
+    else if (option.type === 'camp_heal') {
+        party.forEach(member => {
+            if (member.hp > 0) { member.hp = member.maxHp; member.mp = member.maxMp; }
+        });
+        addLog({ type: 'heal', message: '🔥 队伍在营火旁充分休息，存活成员的 HP 与 MP 已全部恢复。' });
+        endEvent();
+    }
+    else if (option.type === 'choose_skill_upgrade') {
+        const candidates = party.map((member, charIndex) => ({ member, charIndex }))
+            .filter(entry => entry.member.hp > 0 && (entry.member.skillLevel || 0) < 3);
+        if (candidates.length === 0) {
+            addLog({ type: 'warning', message: '队伍中没有可以继续升级技能的成员。' });
+            return;
+        }
+        activeEvent = {
+            title: '📖 选择训练对象',
+            desc: '技能升级会永久提高该职业技能的伤害或治疗量。',
+            options: candidates.map(({ member, charIndex }) => ({
+                label: `${member.name}：${CLASS_SKILLS[member.class]?.name || '职业技能'} Lv.${(member.skillLevel || 0) + 1} → Lv.${(member.skillLevel || 0) + 2}`,
+                desc: '本次训练后立即生效。', type: 'upgrade_skill', charIndex
+            }))
+        };
+        updateUI();
+    }
+    else if (option.type === 'upgrade_skill') {
+        const member = party[option.charIndex];
+        if (!member || member.hp <= 0 || (member.skillLevel || 0) >= 3) return;
+        member.skillLevel = (member.skillLevel || 0) + 1;
+        addLog({ type: 'skill', message: `📖 ${member.name} 的 [${CLASS_SKILLS[member.class]?.name || '职业技能'}] 提升到 Lv.${member.skillLevel + 1}！` });
+        endEvent();
     }
     else if (option.type === 'sacrifice') {
         const p = randomAliveCharacter();

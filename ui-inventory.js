@@ -1,5 +1,35 @@
 // ui-inventory.js - 背包与物品目标选择
 
+function getEquipmentComparison(item, character) {
+    if (!item || !character || !['weapon', 'armor'].includes(item.type)) return null;
+    const slot = item.type;
+    const currentItem = character.equipment?.[slot];
+    const stat = slot === 'weapon' ? 'att' : 'hpMax';
+    const label = slot === 'weapon' ? '攻击' : '额外HP';
+    const current = currentItem?.[stat] || 0;
+    const next = item[stat] || 0;
+    return { label, current, next, delta: next - current };
+}
+
+function getEquipmentComparisonText(item, character) {
+    const comparison = getEquipmentComparison(item, character);
+    if (!comparison) return '';
+    const sign = comparison.delta > 0 ? '+' : '';
+    return `${comparison.label} ${comparison.current} → ${comparison.next}（${sign}${comparison.delta}）`;
+}
+
+function getBestEquipmentComparison(item) {
+    if (!['weapon', 'armor'].includes(item?.type) || party.length === 0) return '';
+    const candidates = party.filter(member => member.hp > 0).map(member => ({
+        member,
+        comparison: getEquipmentComparison(item, member)
+    }));
+    if (candidates.length === 0) return '暂无可装备角色';
+    const best = candidates.reduce((winner, candidate) => candidate.comparison.delta > winner.comparison.delta ? candidate : winner);
+    if (best.comparison.delta <= 0) return '暂无属性提升';
+    return `最佳：${best.member.name} ${best.comparison.label} +${best.comparison.delta}`;
+}
+
 function renderInventory() {
   document.getElementById('goldDisplay').textContent = `${inventory.gold} G`;
   const list = document.getElementById('itemList'); 
@@ -21,7 +51,8 @@ function renderInventory() {
     const btn = document.createElement('button');
     btn.className = 'useBtn'; btn.style.fontSize = '0.8em'; btn.style.padding = '2px 8px';
     
-    if (item.type === 'treasure') { btn.textContent = '卖出'; btn.onclick = () => window.sellItem(index); } 
+    if (item.type === 'quest') { btn.textContent = '任务物品'; btn.disabled = true; }
+    else if (item.type === 'treasure') { btn.textContent = '卖出'; btn.onclick = () => window.sellItem(index); }
     else if (item.type === 'weapon' || item.type === 'armor') { btn.textContent = '装备'; btn.onclick = () => showTargetSelection(index); }
     else {
         if (item.type === 'combat' && gameState !== 'COMBAT') { btn.textContent = '战斗用'; btn.disabled = true; } 
@@ -57,7 +88,8 @@ function showTargetSelection(itemIndex) {
         if (p.hp <= 0) { status = " (已阵亡)"; disabled = true; } 
         else if (gameState === 'COMBAT' && combatState.actedIndices.includes(idx) && item.type !== 'weapon' && item.type !== 'armor') { status = " (已行动)"; disabled = true; }
 
-        btn.innerHTML = `<b>${p.name}</b> <span style="font-size:0.8em; color:#666">${status}</span>`;
+        const comparisonText = getEquipmentComparisonText(item, p);
+        btn.innerHTML = `<b>${p.name}</b> <span style="font-size:0.8em; color:#666">${status}</span>${comparisonText ? `<br><small style="color:${getEquipmentComparison(item, p).delta > 0 ? '#2e7d32' : '#b71c1c'}">${comparisonText}</small>` : ''}`;
         if (disabled) { btn.style.opacity = 0.5; btn.style.borderStyle = "dashed"; btn.style.cursor = "not-allowed"; } 
         else { btn.onclick = () => { overlay.classList.remove('active'); if (window.confirmUseItem) window.confirmUseItem(itemIndex, idx); }; }
         container.appendChild(btn);

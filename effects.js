@@ -2,52 +2,56 @@
 
 const SKILL_EFFECTS = {
     skill_warrior_sweep(user, battleState) {
-        const damage = 2;
+        const damage = 2 + (user.skillLevel || 0);
         if (battleState.type === 'group') {
             const kills = damageEnemy(damage);
             return `${user.name} 挥舞武器横扫，击倒了 ${kills} 个敌人！`;
         }
         damageEnemy(damage);
-        return `${user.name} 重重地劈砍，对 ${battleState.enemy.name} 造成 2 点伤害！`;
+        return `${user.name} 重重地劈砍，对 ${battleState.enemy.name} 造成 ${damage} 点伤害！`;
     },
 
     skill_rogue_backstab(user, battleState) {
-        damageEnemy(battleState.type === 'group' ? 1 : 2);
+        const damage = (battleState.type === 'group' ? 1 : 2) + (user.skillLevel || 0);
+        damageEnemy(damage);
         return battleState.type === 'group'
-            ? `${user.name} 潜行到阴影中发动背刺，秒杀了一个敌人！`
-            : `${user.name} 找到了弱点，狠狠刺入！(2伤害)`;
+            ? `${user.name} 潜行到阴影中发动背刺，击倒了 ${damage} 个敌人！`
+            : `${user.name} 找到了弱点，狠狠刺入！(${damage}伤害)`;
     },
 
     skill_wizard_fireball(user, battleState) {
         if (battleState.type === 'group') {
-            const kills = damageEnemy(d6());
+            const kills = damageEnemy(d6() + (user.skillLevel || 0));
             return `${user.name} 咏唱咒语扔出火球，炸飞了 ${kills} 个敌人！`;
         }
-        damageEnemy(3);
-        return `${user.name} 的火球术直接命中，造成 3 点爆发伤害！`;
+        const damage = 3 + (user.skillLevel || 0);
+        damageEnemy(damage);
+        return `${user.name} 的火球术直接命中，造成 ${damage} 点爆发伤害！`;
     },
 
     skill_cleric_heal(user) {
         const livingParty = party.filter(member => member.hp > 0);
         if (livingParty.length === 0) return `${user.name} 的祈祷无人回应。`;
         const target = livingParty.reduce((lowest, member) => member.hp < lowest.hp ? member : lowest);
-        const healAmount = 4;
+        const healAmount = 4 + (user.skillLevel || 0) * 2;
         target.hp = Math.min(target.maxHp, target.hp + healAmount);
         return `${user.name} 祈祷神恩，${target.name} 的伤口愈合了 (+${healAmount} HP)。`;
     },
 
     skill_paladin_smite(user) {
-        damageEnemy(2);
+        const damage = 2 + (user.skillLevel || 0);
+        damageEnemy(damage);
         const oldHp = user.hp;
         user.hp = Math.min(user.maxHp, user.hp + 2);
         return `${user.name} 沐浴着圣光挥剑！造成伤害并恢复了 ${user.hp - oldHp} 点生命。`;
     },
 
     skill_ranger_double_shot(user, battleState) {
-        const damage = damageEnemy(2);
+        const intendedDamage = 2 + (user.skillLevel || 0);
+        const damage = damageEnemy(intendedDamage);
         return battleState.type === 'group'
             ? `${user.name} 快速射出两箭，精准地干掉了 ${damage} 个敌人！`
-            : `${user.name} 的连珠箭全部命中目标！(2伤害)`;
+            : `${user.name} 的连珠箭全部命中目标！(${intendedDamage}伤害)`;
     }
 };
 
@@ -76,9 +80,9 @@ const ITEM_EFFECTS = {
 
 const MONSTER_SKILL_EFFECTS = {
     monster_poison_spit(user, target) {
-        target.hp = Math.max(0, target.hp - 1);
+        const damage = damageCharacter(target, 1);
         applyStatus(target, 'poison', 3);
-        return `${user.name} 喷出一口毒液！${target.name} 受伤并中毒了。`;
+        return `${user.name} 喷出一口毒液！${target.name} 受到 ${damage} 点伤害并中毒了。`;
     },
 
     monster_web_trap(user, target) {
@@ -97,8 +101,8 @@ const MONSTER_SKILL_EFFECTS = {
     },
 
     monster_smash(user, target) {
-        target.hp = Math.max(0, target.hp - 2);
-        return `${user.name} 蓄力重击！${target.name} 受到了 2 点伤害！`;
+        const damage = damageCharacter(target, 2);
+        return `${user.name} 蓄力重击！${target.name} 受到了 ${damage} 点伤害！`;
     }
 };
 

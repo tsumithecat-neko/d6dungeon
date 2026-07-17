@@ -4,6 +4,7 @@ function renderControls(){
   const container = document.getElementById('controls');
   if(!container) return;
   container.innerHTML = ''; 
+  if (typeof renderStoryObjective === 'function') renderStoryObjective(container);
 
   if (gameState === 'EXPLORING') {
     const searchBtn = document.createElement('button');
@@ -85,6 +86,18 @@ function renderControls(){
       <div style="margin-top:5px; font-size:0.8em; color:#555">攻击修正 +${enemy.att || 0} · 命中目标 ${TO_HIT_TARGET}+</div>`;
     combatPanel.appendChild(enemyInfo);
 
+    if (combatState.enemyIntent?.length) {
+        const intentInfo = document.createElement('div');
+        intentInfo.style.cssText = "margin-bottom:8px; padding:8px; background:#fff8e1; border-left:4px solid #f57f17; font-size:0.85em;";
+        const intentRows = combatState.enemyIntent.map(action => {
+            const target = action.targetIndex === null ? enemy : party[action.targetIndex];
+            const damage = typeof getEnemyIntentDamage === 'function' ? getEnemyIntentDamage(action) : action.estimatedDamage;
+            return `<div>👁️ <b>${action.label}</b> → ${target?.name || '未知目标'} <span style="color:#b71c1c">预计 ${damage} 伤害</span></div>`;
+        }).join('');
+        intentInfo.innerHTML = `<div style="margin-bottom:4px; font-weight:bold">敌人下一步</div>${intentRows}`;
+        combatPanel.appendChild(intentInfo);
+    }
+
     if (enemy.status && enemy.status.length > 0) {
         const statusNames = { poison: '中毒', stun: '眩晕', rage: '狂暴', weak: '虚弱', regen: '再生' };
         const statusInfo = document.createElement('div');
@@ -112,7 +125,8 @@ function renderControls(){
         const isDead = member.hp <= 0;
         const isStunned = member.status?.some(status => status.type === 'stun');
         const hasActed = combatState.actedIndices.includes(idx);
-        const stateText = isDead ? '阵亡' : hasActed ? '已行动' : isStunned ? '眩晕待结算' : '待行动';
+        const isDefending = combatState.defendingIndices?.includes(idx);
+        const stateText = isDead ? '阵亡' : isDefending ? '防御中' : hasActed ? '已行动' : isStunned ? '眩晕待结算' : '待行动';
         const stateColor = isDead ? '#777' : hasActed ? '#2e7d32' : isStunned ? '#7b1fa2' : '#e65100';
         row.style.cssText = "display:flex; justify-content:space-between; padding:3px 6px; background:#fafafa; border-bottom:1px dotted #ddd;";
         row.innerHTML = `<span>${member.name} · HP ${member.hp}/${member.maxHp} · MP ${member.mp}/${member.maxMp}</span><b style="color:${stateColor}">${stateText}</b>`;
@@ -143,7 +157,7 @@ function renderControls(){
         const isStunned = p.status && p.status.some(s => s.type === 'stun');
 
         const sBtn = document.createElement('button');
-        sBtn.innerHTML = `<b>${p.name}</b><br><small>${skill.name} · ${skill.cost} MP</small>`;
+        sBtn.innerHTML = `<b>${p.name}</b><br><small>${skill.name} Lv.${(p.skillLevel || 0) + 1} · ${skill.cost} MP</small>`;
         sBtn.style.fontSize = "0.9em";
         
         if (hasActed || p.mp < skill.cost || isStunned) { 
@@ -154,6 +168,18 @@ function renderControls(){
         } 
         else { sBtn.onclick = () => useSkill(idx, skill); }
         skillsDiv.appendChild(sBtn);
+
+        const defendBtn = document.createElement('button');
+        defendBtn.innerHTML = `<b>🛡️ ${p.name}</b><br><small>防御 · 直接伤害减半</small>`;
+        defendBtn.style.fontSize = "0.9em";
+        if (hasActed || isStunned) {
+            defendBtn.disabled = true;
+            defendBtn.style.opacity = 0.5;
+            defendBtn.innerHTML += hasActed ? " (已行动)" : " (眩晕)";
+        } else {
+            defendBtn.onclick = () => window.defendCharacter(idx);
+        }
+        skillsDiv.appendChild(defendBtn);
     });
     combatPanel.appendChild(skillsDiv);
     
