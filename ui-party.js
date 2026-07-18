@@ -6,6 +6,7 @@ function renderParty(){
   list.innerHTML='';
   
   party.forEach(p=>{
+    if (typeof hydrateCharacterRules === 'function') hydrateCharacterRules(p);
     const li = document.createElement('li');
     li.style.borderBottom = "1px dashed #ccc"; li.style.paddingBottom = "6px"; li.style.marginBottom = "6px";
     
@@ -26,6 +27,12 @@ function renderParty(){
     };
     const w = p.equipment?.weapon ? `🗡️${renderEquip(p.equipment.weapon)}` : '👊空手';
     const a = p.equipment?.armor ? `🛡️${renderEquip(p.equipment.armor)}` : '👕布衣';
+    const ac = typeof getCharacterAC === 'function' ? getCharacterAC(p) : 10;
+    const proficiency = typeof getProficiencyBonus === 'function' ? getProficiencyBonus(p) : 2;
+    const abilityHtml = p.abilities ? Object.entries(ABILITY_NAMES).map(([key, name]) =>
+        `${name.slice(0, 1)} ${p.abilities[key]}<small>(${formatModifier(getAbilityModifier(p.abilities[key]))})</small>`
+    ).join(' · ') : '';
+    const skillNames = (p.skillProficiencies || []).map(key => SKILL_DEFINITIONS[key]?.name).filter(Boolean).join('、');
 
     let statusHtml = '';
     if (p.status && p.status.length > 0 && window.STATUS_ICONS) {
@@ -41,6 +48,8 @@ function renderParty(){
           </div>
       </div>
       <div style="font-size:0.85em; color:#555; margin:2px 0;">${w} | ${a}</div>
+      <div style="font-size:0.8em; color:#4527a0; margin:2px 0;">📜 ${p.backgroundName} · AC ${ac} · 熟练 +${proficiency} · 技能：${skillNames}</div>
+      <div style="font-size:0.75em; padding:3px 4px; background:#f5f5f5; margin-bottom:3px;">${abilityHtml}</div>
       <div style="font-family:monospace; margin-top:4px; color:#b71c1c; font-size:1.1em; line-height:1.2">
         HP: ${hpStr} <span style="color:#000; font-size:0.7em">(${p.hp}/${maxHp})</span>
       </div>

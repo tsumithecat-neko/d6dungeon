@@ -84,8 +84,33 @@ function renderCreation() {
     const classSelect = document.createElement('select'); classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
     Object.keys(CLASS_BASE_STATS).forEach(key => { const c = CLASS_BASE_STATS[key]; const opt = document.createElement('option'); opt.value = key; opt.textContent = `${c.name} - ${c.desc}`; classSelect.appendChild(opt); });
     form.innerHTML += "<b>3. 职业:</b>"; form.appendChild(classSelect);
+    const backgroundSelect = document.createElement('select');
+    backgroundSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing:border-box;";
+    Object.keys(BACKGROUNDS).forEach(key => {
+        const background = BACKGROUNDS[key];
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = `${background.name}（${background.skills.map(skill => SKILL_DEFINITIONS[skill].name).join('、')}）`;
+        backgroundSelect.appendChild(option);
+    });
+    backgroundSelect.value = CLASS_DEFAULT_BACKGROUNDS[classSelect.value];
+    form.innerHTML += "<b>4. 背景:</b>"; form.appendChild(backgroundSelect);
+
+    const abilityPreview = document.createElement('div');
+    abilityPreview.style.cssText = "margin-bottom:12px; padding:8px; background:#f3e5f5; border-left:4px solid #7b1fa2; font-size:0.82em;";
+    const updateAbilityPreview = () => {
+        const scores = buildAbilityScores(raceSelect.value, classSelect.value);
+        abilityPreview.innerHTML = `<b>自动生成属性</b><br>${Object.entries(ABILITY_NAMES).map(([key, name]) => `${name} ${scores[key]} (${formatModifier(getAbilityModifier(scores[key]))})`).join(' · ')}`;
+    };
+    raceSelect.onchange = updateAbilityPreview;
+    classSelect.onchange = () => {
+        backgroundSelect.value = CLASS_DEFAULT_BACKGROUNDS[classSelect.value];
+        updateAbilityPreview();
+    };
+    updateAbilityPreview();
+    form.appendChild(abilityPreview);
     const addBtn = document.createElement('button'); addBtn.textContent = "➕ 登记角色"; addBtn.style.cssText = "width:100%; padding:10px; background:#eee; color:#000; border:2px solid #000; cursor:pointer; font-weight:bold";
-    addBtn.onclick = () => { const nameVal = nameInput.value; const rKey = raceSelect.value; const cKey = classSelect.value; if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal); };
+    addBtn.onclick = () => { const nameVal = nameInput.value; const rKey = raceSelect.value; const cKey = classSelect.value; const bKey = backgroundSelect.value; if (window.addCharacter) window.addCharacter(rKey, cKey, nameVal, bKey); };
     form.appendChild(addBtn); container.appendChild(form);
 }
 

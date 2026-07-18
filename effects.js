@@ -81,13 +81,17 @@ const ITEM_EFFECTS = {
 const MONSTER_SKILL_EFFECTS = {
     monster_poison_spit(user, target) {
         const damage = damageCharacter(target, 1);
-        applyStatus(target, 'poison', 3);
-        return `${user.name} 喷出一口毒液！${target.name} 受到 ${damage} 点伤害并中毒了。`;
+        const save = makeSavingThrow(target, 'con', user.saveDC || 10);
+        if (!save.success) applyStatus(target, 'poison', 3);
+        return `${user.name} 喷出一口毒液！${target.name} 受到 ${damage} 点伤害，${save.success ? '但通过体质豁免抵抗了毒素' : '并中毒了'}。`;
     },
 
     monster_web_trap(user, target) {
-        applyStatus(target, 'stun', 1);
-        return `${user.name} 射出粘稠的蛛网，${target.name} 动弹不得！`;
+        const save = makeSavingThrow(target, 'dex', user.saveDC || 10);
+        if (!save.success) applyStatus(target, 'stun', 1);
+        return save.success
+            ? `${user.name} 射出粘稠蛛网，但 ${target.name} 通过敏捷豁免躲开了！`
+            : `${user.name} 射出粘稠的蛛网，${target.name} 动弹不得！`;
     },
 
     monster_warcry(user) {
@@ -96,13 +100,17 @@ const MONSTER_SKILL_EFFECTS = {
     },
 
     monster_curse(user, target) {
-        applyStatus(target, 'weak', 3);
-        return `${user.name} 念出亵渎的咒语，${target.name} 感到力量流失了。`;
+        const save = makeSavingThrow(target, 'wis', user.saveDC || 10);
+        if (!save.success) applyStatus(target, 'weak', 3);
+        return save.success
+            ? `${target.name} 通过感知豁免，看穿了 ${user.name} 的诅咒！`
+            : `${user.name} 念出亵渎的咒语，${target.name} 感到力量流失了。`;
     },
 
     monster_smash(user, target) {
-        const damage = damageCharacter(target, 2);
-        return `${user.name} 蓄力重击！${target.name} 受到了 ${damage} 点伤害！`;
+        const save = makeSavingThrow(target, 'str', user.saveDC || 10);
+        const damage = damageCharacter(target, save.success ? 1 : 2);
+        return `${user.name} 蓄力重击！${target.name} ${save.success ? '通过力量豁免稳住身形，仍' : ''}受到了 ${damage} 点伤害！`;
     }
 };
 

@@ -1,7 +1,5 @@
 // data.js - 游戏配置与静态数据
 
-const TO_HIT_TARGET = 4; // 判定标准
-
 // --- 状态与图标 (挂载到 window 以防访问不到) ---
 window.STATUS_ICONS = {
     poison: '☠️', // 中毒
@@ -58,7 +56,7 @@ const EVENT_DEFINITIONS = {
         desc: "你听到脚下的地板发出令人不安的‘咔哒’声，墙壁上的孔洞里隐约闪烁着寒光...",
         options: [
             { label: "✋ 尝试拆除", reqClass: "rogue", desc: "需: 盗贼。利用专业工具尝试卡住齿轮。", type: "class_check" },
-            { label: "🏃 全员闪避", desc: "全队尝试躲开毒箭。(判定: d6 >= 4)", type: "roll_check", target: 4, failDamage: 2, successMsg: "你们身手矫健，毒箭全部射在了空地上！", failMsg: "反应太慢了！几名队友被毒箭擦伤。" },
+            { label: "🏃 寻找安全落点", desc: "由最擅长体操的成员进行 D20 敏捷检定（DC 13）。", type: "roll_check", target: 13, ability: "dex", skill: "acrobatics", failDamage: 2, successMsg: "你们身手矫健，毒箭全部射在了空地上！", failMsg: "反应太慢了！几名队友被毒箭擦伤。" },
             { label: "🛡️ 举盾硬抗", desc: "需: 战士/圣骑士。站在最前面挡下伤害。", type: "tank_damage", damage: 2, validClasses: ["warrior", "paladin"] }
         ]
     },
@@ -76,8 +74,8 @@ const EVENT_DEFINITIONS = {
         desc: "一个巨大的石门挡住了去路，门上不仅没有锁孔，反而刻着一道复杂的逻辑谜题。",
         options: [
             { label: "✨ 解读符文", reqClass: "wizard", desc: "需: 法师。利用奥术知识直接破解。(获得宝物)", type: "auto_loot" },
-            { label: "🎲 尝试猜测", desc: "随便按一个按钮试试？(判定: d6 = 6 成功, 1 触发陷阱)", type: "gamble" },
-            { label: "💥 暴力破门", reqClass: ["warrior", "orc"], desc: "需: 战士/兽人。用蛮力砸开它！", type: "force_open" }
+            { label: "🎲 推理机关", desc: "由调查能力最高的成员进行 D20 调查检定（DC 15）。", type: "gamble", target: 15, ability: "int", skill: "investigation" },
+            { label: "💥 暴力破门", reqClass: ["warrior", "orc"], desc: "需: 战士/兽人。进行 D20 运动检定（DC 13）。", type: "force_open", target: 13, ability: "str", skill: "athletics" }
         ]
     }
 };
@@ -136,6 +134,15 @@ const ROOM_TABLE = {
   20: { name: "古代宝库", type: "treasure_room", w: 4, h: 4, shape: 'diamond' }
 };
 
+const SPECIAL_ROOM_TYPES = {
+  armory:  { name: '尘封军械库', icon: '🗡️', desc: '可能找到装备，也可能触发残存机关。', eventKey: '特殊房·军械库' },
+  alchemy: { name: '炼金实验室', icon: '⚗️', desc: '利用奥秘知识调制额外消耗品。', eventKey: '特殊房·炼金实验室' },
+  spring:  { name: '地下圣泉', icon: '💧', desc: '在生命、法力和状态净化之间作出选择。', eventKey: '特殊房·地下圣泉' },
+  prison:  { name: '废弃牢房', icon: '⛓️', desc: '营救幸存者或从他口中取得情报。', eventKey: '特殊房·废弃牢房' },
+  fungus:  { name: '菌菇洞穴', icon: '🍄', desc: '采集药材需要承受孢子的风险。', eventKey: '特殊房·菌菇洞穴' },
+  crypt:   { name: '古代墓室', icon: '⚰️', desc: '更强的亡灵守卫着额外陪葬品。', combat: true }
+};
+
 const CONNECTOR_CORRIDORS = {
     horiz_1: { name: "短通道", type: "corridor", w: 1, h: 1, shape: 'rect' },
     horiz_2: { name: "通道", type: "corridor", w: 2, h: 1, shape: 'rect' },
@@ -159,6 +166,110 @@ const RACES = {
     orc:      { name: "兽人", hp: 2, mp: -2, att: 1, desc: "野蛮力量 (HP+2, 攻+1, MP-2)" },
     halfling: { name: "半身人", hp: -1, mp: 3, att: 0, desc: "幸运机敏 (MP+3, HP-1)" },
     tiefling: { name: "提夫林", hp: 0, mp: 1, att: 1, desc: "炼狱血统 (攻+1, MP+1)" }
+};
+
+EVENT_DEFINITIONS['特殊房·军械库'] = {
+    title: '🗡️ 尘封军械库',
+    desc: '腐朽的武器架之间仍有一只完好的军备箱，但锁扣上残留着机关刻痕。',
+    options: [
+        { label: '检查并开启军备箱', desc: '进行 D20 调查检定（DC 13），成功获得一件装备。', type: 'special_gear_check', skill: 'investigation', ability: 'int', target: 13 },
+        { label: '强行撬开', desc: '进行 D20 运动检定（DC 14），失败时全队受到 1 点伤害。', type: 'special_gear_check', skill: 'athletics', ability: 'str', target: 14, failDamage: 1 },
+        { label: '保持警惕并离开', desc: '不触碰可能存在的机关。', type: 'leave' }
+    ]
+};
+
+EVENT_DEFINITIONS['特殊房·炼金实验室'] = {
+    title: '⚗️ 废弃炼金实验室',
+    desc: '蒸馏器仍在微微冒泡，桌上散落着几瓶没有标签的药剂。',
+    options: [
+        { label: '调制治疗药剂', desc: '进行 D20 奥秘检定（DC 13），成功获得 2 瓶治疗药水。', type: 'alchemy_check', skill: 'arcana', ability: 'int', target: 13 },
+        { label: '拿走一瓶稳定药剂', desc: '安全获得 1 瓶治疗药水。', type: 'brew_potion', amount: 1 },
+        { label: '不要碰这些瓶子', desc: '离开实验室。', type: 'leave' }
+    ]
+};
+
+EVENT_DEFINITIONS['特殊房·地下圣泉'] = {
+    title: '💧 地下圣泉',
+    desc: '清澈泉水从断裂的神像下流出，水面映不出地牢的天花板。',
+    options: [
+        { label: '饮下泉水', desc: '所有存活成员恢复一半最大 HP。', type: 'sacred_spring', mode: 'hp' },
+        { label: '在泉边冥想', desc: '所有存活成员恢复一半最大 MP。', type: 'sacred_spring', mode: 'mp' },
+        { label: '清洗伤口', desc: '清除全队的中毒、虚弱和眩晕。', type: 'sacred_spring', mode: 'cleanse' }
+    ]
+};
+
+EVENT_DEFINITIONS['特殊房·废弃牢房'] = {
+    title: '⛓️ 废弃牢房',
+    desc: '最深处的牢门后还有一名虚弱的幸存者，他声称知道守卫藏钱的位置。',
+    options: [
+        { label: '撬锁救人', desc: '进行 D20 巧手检定（DC 12），成功获得金币和全队经验。', type: 'prison_rescue', skill: 'sleight', ability: 'dex', target: 12 },
+        { label: '说服他交出情报', desc: '进行 D20 游说检定（DC 13），成功获得额外金币。', type: 'prison_bargain', skill: 'persuasion', ability: 'cha', target: 13 },
+        { label: '无法信任他', desc: '让牢门继续保持关闭。', type: 'leave' }
+    ]
+};
+
+EVENT_DEFINITIONS['特殊房·菌菇洞穴'] = {
+    title: '🍄 发光菌菇洞穴',
+    desc: '蓝绿色菌菇铺满岩壁，其中一些可以入药，另一些正释放着细小孢子。',
+    options: [
+        { label: '采集药用菌菇', desc: '进行 D20 生存检定（DC 12），成功恢复全队并获得药水。', type: 'fungus_forage', skill: 'survival', ability: 'wis', target: 12 },
+        { label: '快速穿过孢子区', desc: '进行 D20 体质豁免（DC 12），失败成员会中毒。', type: 'fungus_endure', target: 12 },
+        { label: '原路绕开', desc: '不冒险采集。', type: 'leave' }
+    ]
+};
+
+const ABILITY_NAMES = { str: '力量', dex: '敏捷', con: '体质', int: '智力', wis: '感知', cha: '魅力' };
+
+const CLASS_ABILITY_SCORES = {
+    warrior: { str: 16, dex: 12, con: 15, int: 8,  wis: 10, cha: 10 },
+    rogue:   { str: 10, dex: 16, con: 12, int: 13, wis: 12, cha: 10 },
+    wizard:  { str: 8,  dex: 12, con: 12, int: 16, wis: 14, cha: 10 },
+    cleric:  { str: 10, dex: 10, con: 14, int: 10, wis: 16, cha: 13 },
+    paladin: { str: 16, dex: 10, con: 14, int: 8,  wis: 12, cha: 15 },
+    ranger:  { str: 12, dex: 16, con: 13, int: 10, wis: 14, cha: 8 }
+};
+
+const RACE_ABILITY_BONUSES = {
+    human:    { str: 1, dex: 1, con: 1, int: 1, wis: 1, cha: 1 },
+    dwarf:    { con: 2, wis: 1 },
+    elf:      { dex: 2, int: 1 },
+    orc:      { str: 2, con: 1 },
+    halfling: { dex: 2, cha: 1 },
+    tiefling: { cha: 2, int: 1 }
+};
+
+const SKILL_DEFINITIONS = {
+    athletics: { name: '运动', ability: 'str' }, acrobatics: { name: '体操', ability: 'dex' },
+    sleight: { name: '巧手', ability: 'dex' }, stealth: { name: '隐匿', ability: 'dex' },
+    arcana: { name: '奥秘', ability: 'int' }, history: { name: '历史', ability: 'int' },
+    investigation: { name: '调查', ability: 'int' }, nature: { name: '自然', ability: 'int' },
+    religion: { name: '宗教', ability: 'int' }, insight: { name: '洞悉', ability: 'wis' },
+    medicine: { name: '医药', ability: 'wis' }, perception: { name: '察觉', ability: 'wis' },
+    survival: { name: '生存', ability: 'wis' }, deception: { name: '欺瞒', ability: 'cha' },
+    intimidation: { name: '威吓', ability: 'cha' }, persuasion: { name: '游说', ability: 'cha' }
+};
+
+const BACKGROUNDS = {
+    soldier:  { name: '士兵', desc: '军旅生涯让你擅长正面冲突。', skills: ['athletics', 'intimidation'] },
+    criminal: { name: '罪犯', desc: '熟悉阴影、机关和城市暗面。', skills: ['stealth', 'sleight'] },
+    sage:     { name: '学者', desc: '长期研究魔法与古代文献。', skills: ['arcana', 'history'] },
+    acolyte:  { name: '侍僧', desc: '接受过神殿教义与识人训练。', skills: ['religion', 'insight'] },
+    outlander:{ name: '化外之民', desc: '在荒野中依靠直觉生存。', skills: ['survival', 'perception'] },
+    noble:    { name: '贵族', desc: '熟悉礼仪、历史与权力关系。', skills: ['persuasion', 'history'] }
+};
+
+const CLASS_DEFAULT_BACKGROUNDS = {
+    warrior: 'soldier', rogue: 'criminal', wizard: 'sage',
+    cleric: 'acolyte', paladin: 'noble', ranger: 'outlander'
+};
+
+const CLASS_SAVING_THROWS = {
+    warrior: ['str', 'con'], rogue: ['dex', 'int'], wizard: ['int', 'wis'],
+    cleric: ['wis', 'cha'], paladin: ['wis', 'cha'], ranger: ['str', 'dex']
+};
+
+const CLASS_ATTACK_ABILITIES = {
+    warrior: 'str', rogue: 'dex', wizard: 'int', cleric: 'wis', paladin: 'str', ranger: 'dex'
 };
 
 const CLASS_SKILLS = {

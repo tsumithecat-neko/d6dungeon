@@ -4,17 +4,28 @@ function getEquipmentComparison(item, character) {
     if (!item || !character || !['weapon', 'armor'].includes(item.type)) return null;
     const slot = item.type;
     const currentItem = character.equipment?.[slot];
+    if (slot === 'armor') {
+        const current = currentItem?.def || 0;
+        const next = item.def || 0;
+        const currentHp = currentItem?.hpMax || 0;
+        const nextHp = item.hpMax || 0;
+        return { label: 'AC护甲', current, next, delta: next - current, currentHp, nextHp, scoreDelta: (next - current) * 3 + (nextHp - currentHp) };
+    }
     const stat = slot === 'weapon' ? 'att' : 'hpMax';
     const label = slot === 'weapon' ? '攻击' : '额外HP';
     const current = currentItem?.[stat] || 0;
     const next = item[stat] || 0;
-    return { label, current, next, delta: next - current };
+    return { label, current, next, delta: next - current, scoreDelta: next - current };
 }
 
 function getEquipmentComparisonText(item, character) {
     const comparison = getEquipmentComparison(item, character);
     if (!comparison) return '';
     const sign = comparison.delta > 0 ? '+' : '';
+    if (item.type === 'armor') {
+        const hpDelta = comparison.nextHp - comparison.currentHp;
+        return `护甲 ${comparison.current} → ${comparison.next}（${sign}${comparison.delta} AC）· HP ${comparison.currentHp} → ${comparison.nextHp}（${hpDelta > 0 ? '+' : ''}${hpDelta}）`;
+    }
     return `${comparison.label} ${comparison.current} → ${comparison.next}（${sign}${comparison.delta}）`;
 }
 
@@ -25,8 +36,9 @@ function getBestEquipmentComparison(item) {
         comparison: getEquipmentComparison(item, member)
     }));
     if (candidates.length === 0) return '暂无可装备角色';
-    const best = candidates.reduce((winner, candidate) => candidate.comparison.delta > winner.comparison.delta ? candidate : winner);
-    if (best.comparison.delta <= 0) return '暂无属性提升';
+    const best = candidates.reduce((winner, candidate) => candidate.comparison.scoreDelta > winner.comparison.scoreDelta ? candidate : winner);
+    if (best.comparison.scoreDelta <= 0) return '暂无属性提升';
+    if (item.type === 'armor') return `最佳：${best.member.name} AC ${best.comparison.delta >= 0 ? '+' : ''}${best.comparison.delta}，HP ${best.comparison.nextHp - best.comparison.currentHp >= 0 ? '+' : ''}${best.comparison.nextHp - best.comparison.currentHp}`;
     return `最佳：${best.member.name} ${best.comparison.label} +${best.comparison.delta}`;
 }
 
@@ -89,7 +101,8 @@ function showTargetSelection(itemIndex) {
         else if (gameState === 'COMBAT' && combatState.actedIndices.includes(idx) && item.type !== 'weapon' && item.type !== 'armor') { status = " (已行动)"; disabled = true; }
 
         const comparisonText = getEquipmentComparisonText(item, p);
-        btn.innerHTML = `<b>${p.name}</b> <span style="font-size:0.8em; color:#666">${status}</span>${comparisonText ? `<br><small style="color:${getEquipmentComparison(item, p).delta > 0 ? '#2e7d32' : '#b71c1c'}">${comparisonText}</small>` : ''}`;
+        const comparison = getEquipmentComparison(item, p);
+        btn.innerHTML = `<b>${p.name}</b> <span style="font-size:0.8em; color:#666">${status}</span>${comparisonText ? `<br><small style="color:${comparison.scoreDelta > 0 ? '#2e7d32' : '#b71c1c'}">${comparisonText}</small>` : ''}`;
         if (disabled) { btn.style.opacity = 0.5; btn.style.borderStyle = "dashed"; btn.style.cursor = "not-allowed"; } 
         else { btn.onclick = () => { overlay.classList.remove('active'); if (window.confirmUseItem) window.confirmUseItem(itemIndex, idx); }; }
         container.appendChild(btn);

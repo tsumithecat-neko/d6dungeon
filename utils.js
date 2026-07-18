@@ -109,7 +109,7 @@ function collectSaveData() {
         : null;
 
     return {
-        version: 1.6,
+        version: 1.8,
         timestamp: Date.now(),
         party: party,
         dungeon: dungeon,
@@ -243,6 +243,7 @@ function importSaveGame(data) {
             p.skillLevel = Math.max(0, Math.min(3, p.skillLevel || 0));
             if (!Array.isArray(p.status)) p.status = [];
             if (!p.equipment) p.equipment = { weapon: null, armor: null };
+            if (typeof hydrateCharacterRules === 'function') hydrateCharacterRules(p);
             party.push(p);
         });
 
@@ -257,7 +258,7 @@ function importSaveGame(data) {
         
         Object.assign(combatState, {
             active: false, type: null, enemy: null, round: 0,
-            actedIndices: [], defendingIndices: [], enemyIntent: []
+            actedIndices: [], defendingIndices: [], enemyIntent: [], initiative: null
         }, data.combatState || {});
         if (!Array.isArray(combatState.actedIndices)) combatState.actedIndices = [];
         if (!Array.isArray(combatState.defendingIndices)) combatState.defendingIndices = [];
@@ -265,6 +266,12 @@ function importSaveGame(data) {
         if (combatState.enemy) {
             if (combatState.type === 'group' && !combatState.enemy.maxCount) combatState.enemy.maxCount = combatState.enemy.count;
             if (combatState.type !== 'group' && !combatState.enemy.maxHp) combatState.enemy.maxHp = combatState.enemy.hp;
+            const savedWorldLevel = data.worldLevel || 1;
+            const tierBonus = Math.floor((savedWorldLevel - 1) / 2);
+            combatState.enemy.ac = combatState.enemy.ac || (combatState.type === 'boss' ? 13 : combatState.type === 'elite' ? 12 : 10) + tierBonus;
+            combatState.enemy.attackBonus = combatState.enemy.attackBonus ?? 2 + (combatState.enemy.att || 0);
+            combatState.enemy.saveDC = combatState.enemy.saveDC || 10 + tierBonus + (combatState.type === 'boss' ? 2 : combatState.type === 'elite' ? 1 : 0);
+            if (!combatState.initiative && typeof rollCombatInitiative === 'function') combatState.initiative = rollCombatInitiative(combatState.enemy);
         }
 
         const eventKey = data.activeEventKey || dungeon[playerRoomId]?.encounter?.subtype;

@@ -20,7 +20,8 @@ let combatState = {
   round: 0,
   actedIndices: [],
   defendingIndices: [],
-  enemyIntent: []
+  enemyIntent: [],
+  initiative: null
 };
 
 // 当前激活的互动事件

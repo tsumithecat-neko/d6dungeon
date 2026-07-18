@@ -51,12 +51,22 @@ function createRoom(type, isConnector = false){
   }
   
   const roomType = shapeData.type || 'room';
-  const encounter = (type === 'start' || isConnector) ? { main: 'none' } : generateEncounter(roomType);
+  let specialType = null;
+  if (!type && !isConnector && roomType === 'room' && Math.random() < 0.4) {
+      specialType = randomFrom(Object.keys(SPECIAL_ROOM_TYPES));
+      shapeData.name = SPECIAL_ROOM_TYPES[specialType].name;
+  }
+  const encounter = (type === 'start' || isConnector)
+      ? { main: 'none' }
+      : specialType ? generateSpecialRoomEncounter(specialType) : generateEncounter(roomType);
   
   const room = {
     id: null, absX: 0, absY: 0, genRoll: roll, shape: shapeData,
     doors: {}, encounter: encounter, visited: isConnector, isConnector: isConnector,
-    _encounterResolved: isConnector 
+    specialType: specialType,
+    specialIcon: specialType ? SPECIAL_ROOM_TYPES[specialType].icon : null,
+    specialDesc: specialType ? SPECIAL_ROOM_TYPES[specialType].desc : null,
+    _encounterResolved: isConnector
   };
   
   ['up','right','down','left'].forEach(dir => {
@@ -67,6 +77,22 @@ function createRoom(type, isConnector = false){
 }
 
 // --- 遭遇生成逻辑 ---
+function generateSpecialRoomEncounter(specialType) {
+  const definition = SPECIAL_ROOM_TYPES[specialType];
+  if (!definition) return generateEncounter('room');
+  if (definition.eventKey) return { main: 'event', subtype: definition.eventKey };
+  if (specialType === 'crypt') {
+      const pool = MONSTER_POOLS.minion;
+      const enemy = JSON.parse(JSON.stringify(randomFrom(pool)));
+      enemy.name = `墓穴守卫·${enemy.name}`;
+      enemy.count = (enemy.count || 1) + 2;
+      enemy.att = (enemy.att || 0) + 1;
+      enemy.category = 'minion';
+      return { main: 'monster', subtype: 'crypt', template: enemy, bonusReward: 'crypt_treasure' };
+  }
+  return { main: 'special', subtype: definition.name };
+}
+
 function generateEncounter(roomType){
   if (roomType === 'boss_room') {
       const pool = MONSTER_POOLS['boss'];

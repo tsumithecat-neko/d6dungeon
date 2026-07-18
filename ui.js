@@ -113,8 +113,10 @@ function drawMap(){
       if(r.encounter.main=='event') {
         if (r.encounter.subtype === '营火') icon='🔥';
         else if (r.encounter.subtype?.startsWith('剧情·')) icon='📜';
+        else if (r.specialIcon) icon=r.specialIcon;
         else icon='❓';
       }
+      if (r.specialIcon && r.encounter.main === 'monster') icon=r.specialIcon;
       ctx.fillText(icon, cx, cy);
       ctx.globalAlpha = 1;
     }

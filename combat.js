@@ -5,14 +5,22 @@ function initCombat(template, type) {
   const enemyData = JSON.parse(JSON.stringify(template));
   
   const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
-  enemyData.hp = Math.floor(enemyData.hp * multiplier);
+  if (Number.isFinite(enemyData.hp)) enemyData.hp = Math.floor(enemyData.hp * multiplier);
   enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
-  enemyData.status = []; 
+  enemyData.status = [];
+  const tierBonus = Math.floor((window.worldLevel - 1) / 2);
+  enemyData.ac = enemyData.ac || (type === 'boss' ? 13 : type === 'elite' ? 12 : 10) + tierBonus;
+  enemyData.attackBonus = 2 + (enemyData.att || 0);
+  enemyData.saveDC = 10 + tierBonus + (type === 'boss' ? 2 : type === 'elite' ? 1 : 0);
+  enemyData.initiativeBonus = Math.max(0, enemyData.att || 0);
 
   if (type === 'group') enemyData.maxCount = enemyData.count || 1;
   else enemyData.maxHp = enemyData.hp || 1;
 
-  party.forEach(p => { if(!p.status) p.status = []; });
+  party.forEach(p => {
+      if(!p.status) p.status = [];
+      if (typeof hydrateCharacterRules === 'function') hydrateCharacterRules(p);
+  });
 
   if (type === 'group') {
     if (!enemyData.count) enemyData.count = 1;
@@ -25,8 +33,9 @@ function initCombat(template, type) {
 
   combatState = {
     active: true, type: type, enemy: enemyData, round: 1,
-    actedIndices: [], defendingIndices: [], enemyIntent: []
+    actedIndices: [], defendingIndices: [], enemyIntent: [], initiative: null
   };
+  combatState.initiative = rollCombatInitiative(enemyData);
   planEnemyTurn();
   
   // 战斗开始词缀 (狂暴)
@@ -36,6 +45,13 @@ function initCombat(template, type) {
           addLog(`🔥 [狂暴] ${p.name} 的武器让他热血沸腾！`);
       }
   });
+  const fastestHero = combatState.initiative.party.filter(entry => party[entry.index]?.hp > 0)
+      .reduce((best, entry) => !best || entry.total > best.total ? entry : best, null);
+  addLog({ type: 'check', message: `⚡ 先攻：队伍 ${fastestHero?.total || 0} vs 敌人 ${combatState.initiative.enemy.total}，${combatState.initiative.side === 'party' ? '冒险者先行动' : '敌人抢先行动'}。` });
+  if (combatState.initiative.side === 'enemy' && combatState.active) {
+      enemyTurn();
+      if (combatState.active) planEnemyTurn();
+  }
   updateUI();
 }
 
@@ -234,7 +250,7 @@ function fightRound() {
 
       const canAct = processStatusEffects(p);
       if (p.hp > 0 && canAct) {
-          requests.push({ label: p.name, id: index });
+          requests.push({ label: `${p.name} 攻击 ${formatModifier(getAttackModifier(p))}`, id: index, sides: 20 });
           activePartyMembers.push(p);
       } else if (!canAct) {
           combatState.actedIndices.push(index); 
@@ -265,20 +281,20 @@ function fightRound() {
           const idx = party.indexOf(p);
           const roll = results[idx];
           
-          if (roll === 6) {
-              addLog(`🎲 <b>${p.name} 骰出了 6！(MP+1)</b>`);
+          if (roll === 20) {
+              addLog(`🎲 <b>${p.name} 骰出自然 20！暴击并恢复 1 MP！</b>`);
               if (p.mp < p.maxMp) p.mp++;
           }
           combatState.actedIndices.push(idx);
 
-          const bonus = (p.class === 'warrior') ? p.lvl : 0; 
-          const weaponAtt = p.equipment?.weapon?.att || 0;
-          const statusBonus = getStatusBonus(p, 'att');
-          const total = roll + p.att + weaponAtt + bonus + statusBonus;
+          const attackModifier = getAttackModifier(p);
+          const total = roll + attackModifier;
           
           const rollIcon = logDieIcon(roll);
           
-          if (total >= TO_HIT_TARGET) {
+          const isCritical = roll === 20;
+          const isHit = isCritical || (roll !== 1 && total >= enemy.ac);
+          if (isHit) {
               hits++;
               
               // 词缀效果
@@ -294,15 +310,16 @@ function fightRound() {
                   }
               }
 
+              const damage = isCritical ? 2 : 1;
               if (combatState.type === 'group') {
-                  damageEnemy(1);
-                  addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 击杀敌人。`);
+                  const kills = damageEnemy(damage);
+                  addLog(`${p.name} ${rollIcon} ${isCritical ? '暴击' : '命中'}！(${total} 对 AC ${enemy.ac}) 击倒 ${kills} 名敌人。`);
               } else {
-                  damageEnemy(1);
-                  addLog(`${p.name} ${rollIcon} 命中！(修正:${total-roll}) 造成伤害。`);
+                  damageEnemy(damage);
+                  addLog(`${p.name} ${rollIcon} ${isCritical ? '暴击' : '命中'}！(${total} 对 AC ${enemy.ac}) 造成 ${damage} 点伤害。`);
               }
           } else {
-              addLog(`${p.name} ${rollIcon} 攻击偏斜了。`);
+              addLog(`${p.name} ${rollIcon} 攻击未命中。(${total} 对 AC ${enemy.ac})`);
           }
       });
       
@@ -351,11 +368,14 @@ function enemyTurn() {
                 }
             }
 
-            const roll = d6();
-            const attBonus = enemy.att + getStatusBonus(enemy, 'att');
-            if (roll + attBonus >= TO_HIT_TARGET) {
-                const damage = damageCharacter(target, 1);
-                addLog(`❌ ${enemy.name} 击中了 ${target.name}！(-${damage} HP)`);
+            const roll = d20();
+            const attBonus = enemy.attackBonus + getStatusBonus(enemy, 'att');
+            const total = roll + attBonus;
+            const targetAC = getCharacterAC(target);
+            const isCritical = roll === 20;
+            if (isCritical || (roll !== 1 && total >= targetAC)) {
+                const damage = damageCharacter(target, isCritical ? 2 : 1);
+                addLog(`❌ ${enemy.name} ${isCritical ? '自然 20 暴击' : '命中'} ${target.name}！（${total} 对 AC ${targetAC}，-${damage} HP）`);
                 
                 if (aAffix && aAffix.effect === 'thorns') {
                     damageEnemy(1);
@@ -364,7 +384,7 @@ function enemyTurn() {
                 }
 
             } else {
-                addLog(`${enemy.name} 扑向 ${target.name} 但被躲开了。`);
+                addLog(`${enemy.name} 掷出 ${roll} ${formatModifier(attBonus)} = ${total}，未能突破 ${target.name} 的 AC ${targetAC}。`);
             }
         }
     }
@@ -432,6 +452,12 @@ function endCombat(win) {
             else if (lootRoll >= 3) gainLoot('gold');
             else addLog("并没有发现什么有价值的东西。");
         }
+        const clearedRoom = dungeon[playerRoomId];
+        if (clearedRoom?.specialType === 'crypt' && !clearedRoom._specialRewardClaimed) {
+            clearedRoom._specialRewardClaimed = true;
+            addLog({ type: 'reward', message: '⚰️ 你们打开了亡灵守卫的陪葬箱。' });
+            gainLoot('gold');
+        }
     }
     
   } else {
@@ -458,9 +484,8 @@ function levelUp(char) {
 
 function tryFlee() {
   addLog("你示意队伍撤退...");
-  rollDiceAnim([{ label: "逃跑判定", id: "flee" }], (results) => {
-      const roll = results["flee"];
-      if (roll >= 4) {
+  rollPartySkillCheck({ skill: 'acrobatics', ability: 'dex', dc: 12, label: '逃跑检定' }, result => {
+      if (result.success) {
         addLog(`逃跑成功！`);
         const target = randomAliveCharacter();
         if (target) { target.hp -= 1; addLog(`${target.name} 在混乱中擦伤 (-1 HP)。`); }
@@ -521,6 +546,13 @@ window.resolveEncounter = function(room){
   }
 };
 
+function grantHealingPotions(amount) {
+    for (let i = 0; i < amount; i++) {
+        inventory.items.push({ ...ITEM_TYPES.potion, itemKey: 'potion', id: Date.now() + Math.random() });
+    }
+    addLog({ type: 'loot', message: `🧪 获得治疗药水 ×${amount}` });
+}
+
 window.handleEventChoice = function(optionIndex) {
     const option = activeEvent.options[optionIndex];
     if (option.reqClass) {
@@ -535,6 +567,81 @@ window.handleEventChoice = function(optionIndex) {
     }
     else if (option.type === 'story_choice') {
         if (typeof handleStoryChoice === 'function') handleStoryChoice(option);
+        endEvent();
+    }
+    else if (option.type === 'special_gear_check') {
+        rollPartySkillCheck({ skill: option.skill, ability: option.ability, dc: option.target, label: '开启军备箱' }, result => {
+            if (result.success) {
+                const gearType = Math.random() < 0.5 ? 'weapon' : 'armor';
+                const gear = generateLoot(gearType, window.worldLevel, result.roll === 20);
+                inventory.items.push(gear);
+                addLog({ type: 'loot', message: `🗡️ 你从军备箱中取出了：${gear.name}` });
+            } else if (option.failDamage) {
+                party.forEach(member => { if (member.hp > 0) member.hp = Math.max(0, member.hp - option.failDamage); });
+                addLog({ type: 'warning', message: `军备箱机关启动，全队受到 ${option.failDamage} 点伤害！` });
+                if (!randomAliveCharacter()) { handlePartyDefeat('armory'); return; }
+            } else addLog('箱锁纹丝不动，你们只能放弃里面的装备。');
+            endEvent();
+        });
+    }
+    else if (option.type === 'alchemy_check') {
+        rollPartySkillCheck({ skill: option.skill, ability: option.ability, dc: option.target, label: '炼金调制' }, result => {
+            if (result.success) grantHealingPotions(2);
+            else {
+                party.forEach(member => { if (member.hp > 0) member.hp = Math.max(0, member.hp - 1); });
+                addLog({ type: 'warning', message: '⚗️ 配方发生爆燃，全队受到 1 点伤害。' });
+                if (!randomAliveCharacter()) { handlePartyDefeat('alchemy'); return; }
+            }
+            endEvent();
+        });
+    }
+    else if (option.type === 'brew_potion') {
+        grantHealingPotions(option.amount || 1);
+        endEvent();
+    }
+    else if (option.type === 'sacred_spring') {
+        party.forEach(member => {
+            if (member.hp <= 0) return;
+            if (option.mode === 'hp') member.hp = Math.min(member.maxHp, member.hp + Math.ceil(member.maxHp / 2));
+            if (option.mode === 'mp') member.mp = Math.min(member.maxMp, member.mp + Math.ceil(member.maxMp / 2));
+            if (option.mode === 'cleanse') member.status = (member.status || []).filter(status => !['poison', 'weak', 'stun'].includes(status.type));
+        });
+        const messages = { hp: '泉水治愈了全队的伤势。', mp: '冥想恢复了全队的法力。', cleanse: '圣泉洗去了全队的负面状态。' };
+        addLog({ type: 'heal', message: `💧 ${messages[option.mode]}` });
+        endEvent();
+    }
+    else if (option.type === 'prison_rescue' || option.type === 'prison_bargain') {
+        rollPartySkillCheck({ skill: option.skill, ability: option.ability, dc: option.target, label: option.type === 'prison_rescue' ? '撬开牢门' : '套取情报' }, result => {
+            if (result.success) {
+                const gold = option.type === 'prison_rescue' ? d6() + d6() + 6 : d6() + 15;
+                inventory.gold += gold;
+                if (option.type === 'prison_rescue') party.forEach(member => { if (member.hp > 0) gainXp(member, 2); });
+                addLog({ type: 'reward', message: `⛓️ 幸存者交出了藏匿地点，队伍获得 ${gold} 金币${option.type === 'prison_rescue' ? '和 2 点经验' : ''}。` });
+            } else addLog('牢房中的人拒绝再说话，你们没有得到有用信息。');
+            endEvent();
+        });
+    }
+    else if (option.type === 'fungus_forage') {
+        rollPartySkillCheck({ skill: option.skill, ability: option.ability, dc: option.target, label: '辨认菌菇' }, result => {
+            if (result.success) {
+                party.forEach(member => { if (member.hp > 0) member.hp = Math.min(member.maxHp, member.hp + 2); });
+                grantHealingPotions(1);
+                addLog({ type: 'heal', message: '🍄 药用菌菇让全队恢复了 2 点生命。' });
+            } else {
+                const victim = randomAliveCharacter();
+                if (victim) applyStatus(victim, 'poison', 2);
+                addLog({ type: 'warning', message: `${victim?.name || '一名队员'} 吸入了有毒孢子。` });
+            }
+            endEvent();
+        });
+    }
+    else if (option.type === 'fungus_endure') {
+        party.forEach(member => {
+            if (member.hp <= 0) return;
+            const save = makeSavingThrow(member, 'con', option.target || 12);
+            if (!save.success) applyStatus(member, 'poison', 2);
+        });
+        addLog({ type: 'check', message: '🍄 队伍穿过了浓密的孢子云。' });
         endEvent();
     }
     else if (option.type === 'heal_party') {
@@ -595,38 +702,36 @@ window.handleEventChoice = function(optionIndex) {
         } else { alert("没有活着的肉盾！"); }
     }
     else if (option.type === 'roll_check') {
-        rollDiceAnim([{label:"全员判定", id:"check"}], (results) => {
-            const roll = results['check'];
-            if (roll >= option.target) { addLog(`(🎲 ${roll}) ${option.successMsg}`); } 
+        rollPartySkillCheck({ skill: option.skill, ability: option.ability, dc: option.target, label: '事件检定' }, result => {
+            if (result.success) { addLog(`(🎲 ${result.total}) ${option.successMsg}`); }
             else {
-                addLog(`(🎲 ${roll}) ${option.failMsg}`);
+                addLog(`(🎲 ${result.total}) ${option.failMsg}`);
                 party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - option.failDamage); });
                 if (!randomAliveCharacter()) { handlePartyDefeat('event'); return; }
             } endEvent();
         });
     }
     else if (option.type === 'gamble') {
-        rollDiceAnim([{label:"运气测试", id:"gamble"}], (results) => {
-            const roll = results['gamble'];
-            if (roll === 6) { addLog(`(🎲 6) 机关打开，里面有宝藏！`); gainLoot('item'); } 
-            else if (roll === 1) {
-                addLog(`(🎲 1) 轰隆！你触动了陷阱！`);
+        rollPartySkillCheck({ skill: option.skill || 'investigation', ability: option.ability || 'int', dc: option.target || 15, label: '机关调查' }, result => {
+            if (result.success) { addLog(`(🎲 ${result.total}) 机关打开，里面有宝藏！`); gainLoot('item'); }
+            else if (result.roll === 1) {
+                addLog(`(🎲 自然 1) 轰隆！你触动了陷阱！`);
                 party.forEach(p => p.hp = Math.max(0, p.hp - 2));
                 if (!randomAliveCharacter()) { handlePartyDefeat('event'); return; }
             }
-            else { addLog(`(🎲 ${roll}) 什么也没发生。`); }
+            else { addLog(`(🎲 ${result.total}) 你没能解开机关。`); }
             endEvent();
         });
     }
     else if (option.type === 'force_open') {
-        rollDiceAnim([{label:"暴力破拆", id:"bash"}], (results) => {
-            const roll = results['bash'];
-            if (roll >= 4) { addLog(`轰的一声，门被砸开了！`); gainLoot('gold'); endEvent(); } 
+        rollPartySkillCheck({ skill: option.skill || 'athletics', ability: option.ability || 'str', dc: option.target || 13, label: '暴力破拆' }, result => {
+            if (result.success) { addLog(`轰的一声，门被砸开了！`); gainLoot('gold'); endEvent(); }
             else {
                 addLog(`噪音引来了敌人！`);
                 const pool = MONSTER_POOLS['beast'];
-                const enemy = pool[Math.floor(Math.random()*pool.length)];
-                initCombat(enemy, 'group'); 
+                const enemy = JSON.parse(JSON.stringify(pool[Math.floor(Math.random()*pool.length)]));
+                enemy.category = 'beast';
+                initCombat(enemy, 'group');
             }
         });
     }
@@ -646,18 +751,14 @@ window.performSearch = function() {
     const room = dungeon[playerRoomId];
     if (room.searched) { addLog("你已经翻遍了这里的每一块砖。"); return; }
     room.searched = true;
-    const requests = [{ label: "搜寻判定", id: "search" }];
-    rollDiceAnim(requests, (results) => {
-        const roll = results["search"];
-        const rollIcon = logDieIcon(roll);
-        addLog(`队伍开始搜寻... (判定: ${rollIcon})`);
-        if (roll === 1) {
+    rollPartySkillCheck({ skill: 'investigation', ability: 'int', dc: 12, label: '搜寻房间' }, result => {
+        if (result.roll === 1) {
             addLog("⚠️ 糟糕！触发了隐蔽的机关！全员受到 1 点伤害！");
             party.forEach(p => { if(p.hp > 0) p.hp = Math.max(0, p.hp - 1); });
             if (!randomAliveCharacter()) { handlePartyDefeat('search'); return; }
         } 
-        else if (roll === 6) { addLog("✨ 运气不错！你在角落里发现了一个暗格。"); gainLoot('item'); } 
-        else if (roll >= 4) { addLog("你在废墟下找到了一些零散的金币。"); gainLoot('gold'); } 
+        else if (result.roll === 20) { addLog("✨ 精妙的调查！你在角落里发现了一个暗格。"); gainLoot('item'); }
+        else if (result.success) { addLog("你在废墟下找到了一些零散的金币。"); gainLoot('gold'); }
         else { addLog("除了一些灰尘和碎骨头，什么也没找到。"); }
         updateUI();
     });

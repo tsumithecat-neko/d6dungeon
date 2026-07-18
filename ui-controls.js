@@ -7,8 +7,15 @@ function renderControls(){
   if (typeof renderStoryObjective === 'function') renderStoryObjective(container);
 
   if (gameState === 'EXPLORING') {
-    const searchBtn = document.createElement('button');
     const room = dungeon[playerRoomId];
+    if (room?.specialType && SPECIAL_ROOM_TYPES[room.specialType]) {
+        const roomType = SPECIAL_ROOM_TYPES[room.specialType];
+        const roomInfo = document.createElement('div');
+        roomInfo.style.cssText = "margin-bottom:9px; padding:8px 10px; background:#efebe9; border-left:4px solid #6d4c41;";
+        roomInfo.innerHTML = `<b>${roomType.icon} ${roomType.name}</b><br><small>${roomType.desc}</small>`;
+        container.appendChild(roomInfo);
+    }
+    const searchBtn = document.createElement('button');
     if (room && room.searched) { searchBtn.disabled = true; searchBtn.textContent = '🔍 房间已搜空'; } 
     else { searchBtn.textContent = '🔍 搜寻当前房间'; searchBtn.onclick = () => { if(window.performSearch) window.performSearch(); }; }
     searchBtn.style.width = '100%'; container.appendChild(searchBtn);
@@ -66,7 +73,8 @@ function renderControls(){
 
     const roundInfo = document.createElement('div');
     roundInfo.style.cssText = "display:flex; justify-content:space-between; padding:6px 8px; margin-bottom:8px; background:#212121; color:#fff; font-family:'Special Elite', monospace;";
-    roundInfo.innerHTML = `<span>第 ${combatState.round} 回合</span><span>已行动 ${actedCount}/${aliveCount}</span>`;
+    const initiativeText = combatState.initiative?.side === 'enemy' ? '敌方先攻' : '我方先攻';
+    roundInfo.innerHTML = `<span>第 ${combatState.round} 回合 · ${initiativeText}</span><span>已行动 ${actedCount}/${aliveCount}</span>`;
     combatPanel.appendChild(roundInfo);
 
     const currentValue = combatState.type === 'group' ? Math.max(0, enemy.count) : Math.max(0, enemy.hp);
@@ -83,7 +91,7 @@ function renderControls(){
       <div style="height:8px; margin-top:6px; background:#e0e0e0; overflow:hidden">
         <div style="width:${healthPct}%; height:100%; background:#c62828"></div>
       </div>
-      <div style="margin-top:5px; font-size:0.8em; color:#555">攻击修正 +${enemy.att || 0} · 命中目标 ${TO_HIT_TARGET}+</div>`;
+      <div style="margin-top:5px; font-size:0.8em; color:#555">AC ${enemy.ac || 10} · 攻击修正 ${formatModifier(enemy.attackBonus || 0)} · 豁免 DC ${enemy.saveDC || 10}</div>`;
     combatPanel.appendChild(enemyInfo);
 
     if (combatState.enemyIntent?.length) {
@@ -129,7 +137,7 @@ function renderControls(){
         const stateText = isDead ? '阵亡' : isDefending ? '防御中' : hasActed ? '已行动' : isStunned ? '眩晕待结算' : '待行动';
         const stateColor = isDead ? '#777' : hasActed ? '#2e7d32' : isStunned ? '#7b1fa2' : '#e65100';
         row.style.cssText = "display:flex; justify-content:space-between; padding:3px 6px; background:#fafafa; border-bottom:1px dotted #ddd;";
-        row.innerHTML = `<span>${member.name} · HP ${member.hp}/${member.maxHp} · MP ${member.mp}/${member.maxMp}</span><b style="color:${stateColor}">${stateText}</b>`;
+        row.innerHTML = `<span>${member.name} · AC ${getCharacterAC(member)} · HP ${member.hp}/${member.maxHp} · MP ${member.mp}/${member.maxMp}</span><b style="color:${stateColor}">${stateText}</b>`;
         actionList.appendChild(row);
     });
     combatPanel.appendChild(actionList);

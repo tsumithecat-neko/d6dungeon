@@ -7,8 +7,10 @@ function rollDiceAnim(diceRequests, callback) {
     const diceElements = [];
     diceRequests.forEach(req => {
         const wrapper = document.createElement('div'); wrapper.style.textAlign = 'center';
-        const dieEl = document.createElement('div'); dieEl.className = 'die rolling'; 
-        dieEl.innerHTML = '<div class="pip"></div>'.repeat(6); dieEl.dataset.id = req.id; 
+        const dieEl = document.createElement('div'); dieEl.className = `die ${req.sides === 20 ? 'd20' : ''} rolling`;
+        dieEl.innerHTML = req.sides === 20 ? '<span>?</span>' : '<div class="pip"></div>'.repeat(6);
+        dieEl.dataset.id = req.id;
+        dieEl.dataset.sides = req.sides || 6;
         const label = document.createElement('div'); label.textContent = req.label;
         label.style.marginTop = '8px'; label.style.fontFamily = '"Patrick Hand", cursive';
         wrapper.appendChild(dieEl); wrapper.appendChild(label); container.appendChild(wrapper);
@@ -17,11 +19,15 @@ function rollDiceAnim(diceRequests, callback) {
     setTimeout(() => {
         const results = {};
         diceElements.forEach(el => {
-            el.classList.remove('rolling'); const val = Math.floor(Math.random() * 6) + 1;
+            const sides = Number(el.dataset.sides || 6);
+            el.classList.remove('rolling'); const val = Math.floor(Math.random() * sides) + 1;
             const reqId = el.dataset.id; results[reqId] = val; 
-            if (val === 6) el.classList.add('crit'); el.dataset.val = val; 
-            let pipsHtml = ''; for(let i=0; i<val; i++) pipsHtml += '<div class="pip"></div>';
-            el.innerHTML = pipsHtml;
+            if (val === sides) el.classList.add('crit'); el.dataset.val = val;
+            if (sides === 20) el.innerHTML = `<span>${val}</span>`;
+            else {
+                let pipsHtml = ''; for(let i=0; i<val; i++) pipsHtml += '<div class="pip"></div>';
+                el.innerHTML = pipsHtml;
+            }
         });
         setTimeout(() => { overlay.classList.remove('active'); callback(results); }, 1200); 
     }, 800); 

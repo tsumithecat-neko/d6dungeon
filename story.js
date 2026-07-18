@@ -73,12 +73,13 @@ function storyOnRoomEntered(room) {
         return;
     }
 
-    if (state.chapter === 0 && state.roomsEntered >= 2) {
+    const canHostStoryEvent = !room.specialType;
+    if (state.chapter === 0 && state.roomsEntered >= 2 && canHostStoryEvent) {
         room.encounter = { main: 'event', subtype: STORY_EVENT_KEYS.journal };
         room._encounterResolved = false;
         return;
     }
-    if (state.chapter === 1 && state.roomsEntered >= 5) {
+    if (state.chapter === 1 && state.roomsEntered >= 5 && canHostStoryEvent) {
         room.encounter = { main: 'event', subtype: STORY_EVENT_KEYS.whisper };
         room._encounterResolved = false;
         return;

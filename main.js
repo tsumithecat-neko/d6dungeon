@@ -19,7 +19,7 @@ window.retireGame = function() {
     initGame();
 };
 
-window.addCharacter = function(raceKey, classKey, customName) {
+window.addCharacter = function(raceKey, classKey, customName, backgroundKey = null) {
     if (party.length >= 4) return;
     
     const rData = RACES[raceKey];
@@ -29,6 +29,7 @@ window.addCharacter = function(raceKey, classKey, customName) {
     const finalMp = cData.mp + rData.mp;
     const finalAtt = cData.att + rData.att;
     const finalName = (customName && customName.trim() !== "") ? customName : `${rData.name}${cData.name}`;
+    const resolvedBackground = backgroundKey || CLASS_DEFAULT_BACKGROUNDS[classKey];
 
     const newChar = {
         name: finalName, raceName: rData.name, className: cData.name,
@@ -36,6 +37,11 @@ window.addCharacter = function(raceKey, classKey, customName) {
         hp: finalHp, maxHp: finalHp, mp: finalMp, maxMp: finalMp,
         att: finalAtt, lvl: 1, xp: 0, maxXp: 10,
         skillLevel: 0,
+        backgroundKey: resolvedBackground,
+        backgroundName: BACKGROUNDS[resolvedBackground].name,
+        abilities: buildAbilityScores(raceKey, classKey),
+        skillProficiencies: [...BACKGROUNDS[resolvedBackground].skills],
+        savingThrowProficiencies: [...CLASS_SAVING_THROWS[classKey]],
         equipment: { weapon: null, armor: null },
         status: [] 
     };

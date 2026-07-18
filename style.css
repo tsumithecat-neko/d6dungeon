@@ -105,6 +105,7 @@ main {
 .log-system { color: #4527a0; border-left-color: #7e57c2 !important; }
 .log-story { color: #4a148c; background: #f3e5f5; border-left-color: #8e24aa !important; }
 .log-quest { color: #5d4037; background: #fff8e1; border-left-color: #f9a825 !important; }
+.log-check { color: #283593; background: #e8eaf6; border-left-color: #5c6bc0 !important; }
 
 /* 按钮样式 */
 button {
@@ -166,6 +167,15 @@ button:disabled { border-color: #ccc; color: #ccc; box-shadow: none; cursor: not
   grid-template: repeat(3, 1fr) / repeat(3, 1fr);
 }
 .pip { background-color: #000; border-radius: 50%; width: 10px; height: 10px; place-self: center; }
+.die.d20 {
+  clip-path: polygon(50% 0, 95% 25%, 82% 82%, 50% 100%, 18% 82%, 5% 25%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 0;
+  font: bold 25px "Special Elite", monospace;
+}
 
 /* 点数布局 */
 .die[data-val="1"] .pip:nth-child(1) { grid-area: 2 / 2; }
