@@ -75,15 +75,21 @@ function renderCreation() {
 
     const form = document.createElement('div');
     form.style.background = "#fff"; form.style.padding = "15px"; form.style.border = "2px solid #222"; form.style.boxShadow = "3px 3px 0 rgba(0,0,0,0.1)";
+    const appendFieldLabel = (text) => {
+        const label = document.createElement('b');
+        label.textContent = text;
+        label.style.display = 'block';
+        form.appendChild(label);
+    };
     const nameInput = document.createElement('input'); nameInput.type = 'text'; nameInput.placeholder = '请输入英雄大名...';
     nameInput.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:'Patrick Hand', cursive; font-size:1.1em; color:#000; box-sizing: border-box;";
-    form.innerHTML += "<b>1. 姓名:</b>"; form.appendChild(nameInput);
+    appendFieldLabel('1. 姓名:'); form.appendChild(nameInput);
     const raceSelect = document.createElement('select'); raceSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
     Object.keys(RACES).forEach(key => { const r = RACES[key]; const opt = document.createElement('option'); opt.value = key; opt.textContent = `${r.name} (${r.desc})`; raceSelect.appendChild(opt); });
-    form.innerHTML += "<b>2. 种族:</b>"; form.appendChild(raceSelect);
+    appendFieldLabel('2. 种族:'); form.appendChild(raceSelect);
     const classSelect = document.createElement('select'); classSelect.style.cssText = "width:100%; padding:8px; margin-bottom:16px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing: border-box;";
     Object.keys(CLASS_BASE_STATS).forEach(key => { const c = CLASS_BASE_STATS[key]; const opt = document.createElement('option'); opt.value = key; opt.textContent = `${c.name} - ${c.desc}`; classSelect.appendChild(opt); });
-    form.innerHTML += "<b>3. 职业:</b>"; form.appendChild(classSelect);
+    appendFieldLabel('3. 职业:'); form.appendChild(classSelect);
     const backgroundSelect = document.createElement('select');
     backgroundSelect.style.cssText = "width:100%; padding:8px; margin-bottom:12px; background:#f9f9f9; border:1px solid #555; font-family:inherit; box-sizing:border-box;";
     Object.keys(BACKGROUNDS).forEach(key => {
@@ -94,7 +100,7 @@ function renderCreation() {
         backgroundSelect.appendChild(option);
     });
     backgroundSelect.value = CLASS_DEFAULT_BACKGROUNDS[classSelect.value];
-    form.innerHTML += "<b>4. 背景:</b>"; form.appendChild(backgroundSelect);
+    appendFieldLabel('4. 背景:'); form.appendChild(backgroundSelect);
 
     const abilityPreview = document.createElement('div');
     abilityPreview.style.cssText = "margin-bottom:12px; padding:8px; background:#f3e5f5; border-left:4px solid #7b1fa2; font-size:0.82em;";
