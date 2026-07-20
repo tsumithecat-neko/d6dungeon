@@ -4,13 +4,23 @@ function initCombat(template, type) {
   gameState = 'COMBAT';
   const enemyData = JSON.parse(JSON.stringify(template));
   
-  const multiplier = 1 + (window.worldLevel - 1) * 0.5; 
+  const worldLevel = Math.max(1, window.worldLevel || 1);
+  const alivePartyCount = Math.max(1, party.filter(member => member.hp > 0).length);
+  const multiplier = 1 + (worldLevel - 1) * 0.45
+      + Math.max(0, alivePartyCount - 1) * 0.2
+      + (type === 'boss' ? 0.25 : 0);
   if (Number.isFinite(enemyData.hp)) enemyData.hp = Math.floor(enemyData.hp * multiplier);
-  enemyData.att = enemyData.att + Math.floor((window.worldLevel - 1) * 0.8);
+  if (type === 'group') {
+    enemyData.count = Math.max(1, enemyData.count || 1)
+        + Math.max(0, alivePartyCount - 2)
+        + Math.floor((worldLevel - 1) / 2);
+  }
+  enemyData.att = (enemyData.att || 0) + Math.floor((worldLevel - 1) * 0.8);
   enemyData.status = [];
-  const tierBonus = Math.floor((window.worldLevel - 1) / 2);
-  enemyData.ac = enemyData.ac || (type === 'boss' ? 13 : type === 'elite' ? 12 : 10) + tierBonus;
-  enemyData.attackBonus = 2 + (enemyData.att || 0);
+  const tierBonus = Math.floor((worldLevel - 1) / 2);
+  enemyData.ac = enemyData.ac || (type === 'boss' ? 14 : type === 'elite' ? 12 : 10) + tierBonus;
+  enemyData.attackBonus = 2 + (enemyData.att || 0) + Math.floor((worldLevel - 1) / 3);
+  enemyData.damageBonus = Math.floor((worldLevel - 1) / 3);
   enemyData.saveDC = 10 + tierBonus + (type === 'boss' ? 2 : type === 'elite' ? 1 : 0);
   enemyData.initiativeBonus = Math.max(0, enemyData.att || 0);
 
@@ -33,7 +43,8 @@ function initCombat(template, type) {
 
   combatState = {
     active: true, type: type, enemy: enemyData, round: 1,
-    actedIndices: [], defendingIndices: [], enemyIntent: [], initiative: null
+    actedIndices: [], defendingIndices: [], focusedIndices: [], enemyIntent: [], initiative: null,
+    bossPhase: 1, escalationLevel: 0
   };
   combatState.initiative = rollCombatInitiative(enemyData);
   planEnemyTurn();
@@ -110,6 +121,15 @@ function getIntentBaseDamage(skillKey) {
     return skillKey ? 0 : 1;
 }
 
+function getEnemyAttackCount() {
+    const enemy = combatState.enemy;
+    if (!enemy) return 0;
+    const base = combatState.type === 'group'
+        ? Math.min(Math.max(0, enemy.count || 0), 3)
+        : 2;
+    return base + (combatState.bossPhase >= 2 ? 1 : 0);
+}
+
 function getEnemyIntentDamage(intent) {
     const baseDamage = Math.max(0, intent?.estimatedDamage || 0);
     return combatState.defendingIndices?.includes(intent?.targetIndex) ? Math.floor(baseDamage / 2) : baseDamage;
@@ -120,7 +140,7 @@ function planEnemyTurn() {
     const enemy = combatState.enemy;
     const aliveIndices = party.map((member, index) => member.hp > 0 ? index : -1).filter(index => index >= 0);
     if (aliveIndices.length === 0) return (combatState.enemyIntent = []);
-    const attacks = combatState.type === 'group' ? Math.min(enemy.count, 3) : 2;
+    const attacks = getEnemyAttackCount();
     combatState.enemyIntent = Array.from({ length: Math.max(0, attacks) }, () => {
         let skillKey = null;
         if (enemy.skills?.length) {
@@ -137,6 +157,7 @@ function planEnemyTurn() {
             targetIndex: skillDef?.targetSelf ? null : randomFrom(aliveIndices),
             label: skillDef?.name || '普通攻击',
             estimatedDamage: getIntentBaseDamage(skillKey)
+                + (getIntentBaseDamage(skillKey) > 0 ? (enemy.damageBonus || 0) : 0)
         };
     });
     return combatState.enemyIntent;
@@ -236,11 +257,108 @@ function useSkill(charIndex, skillData) {
   updateUI();
 }
 
+function activateCombatPressure() {
+    const enemy = combatState.enemy;
+    if (!enemy) return;
+
+    if (combatState.type === 'boss' && combatState.bossPhase < 2
+        && enemy.hp > 0 && enemy.hp <= Math.floor((enemy.maxHp || enemy.hp) / 2)) {
+        combatState.bossPhase = 2;
+        enemy.attackBonus += 2;
+        enemy.damageBonus = (enemy.damageBonus || 0) + 1;
+        enemy.saveDC += 1;
+        addLog({ type: 'warning', message: `💢 ${enemy.name} 进入第二阶段：攻击更凶猛，并且每回合多行动一次！` });
+    }
+
+    if (combatState.round >= 4 && combatState.escalationLevel < 1) {
+        combatState.escalationLevel = 1;
+        enemy.attackBonus += 1;
+        enemy.damageBonus = (enemy.damageBonus || 0) + 1;
+        addLog({ type: 'warning', message: '⏳ 战斗拖入险境：敌人的攻击与伤害提高了！' });
+    }
+}
+
+function advanceCombatRound() {
+    combatState.round++;
+    combatState.actedIndices = [];
+    combatState.defendingIndices = [];
+    activateCombatPressure();
+    if (combatState.active) planEnemyTurn();
+}
+
+function consumeFocus(charIndex) {
+    const focusedAt = combatState.focusedIndices.indexOf(charIndex);
+    if (focusedAt >= 0) combatState.focusedIndices.splice(focusedAt, 1);
+}
+
+function resolvePlayerWeaponAttack(member, roll, options = {}) {
+    if (!combatState.active || isEnemyDefeated()) return false;
+    const enemy = combatState.enemy;
+    const attackModifier = getAttackModifier(member) + (options.attackPenalty || 0);
+    const total = roll + attackModifier;
+    const isCritical = roll === 20;
+    const isHit = isCritical || (roll !== 1 && total >= enemy.ac);
+    const attackName = options.name || '攻击';
+
+    if (isCritical) {
+        addLog(`🎲 <b>${member.name} 骰出自然 20！暴击并恢复 1 MP！</b>`);
+        if (member.mp < member.maxMp) member.mp++;
+    }
+
+    if (!isHit) {
+        addLog(`${member.name} ${logDieIcon(roll)} 的${attackName}未命中。(${total} 对 AC ${enemy.ac})`);
+        return false;
+    }
+
+    const weaponAffix = member.equipment?.weapon?.affix;
+    if (weaponAffix?.effect === 'poison') {
+        addLog(`🧪 [剧毒] ${member.name} 的武器使敌人中毒了！`);
+        applyStatus(enemy, 'poison', 3);
+    }
+    if (weaponAffix?.effect === 'lifesteal') {
+        member.hp = Math.min(member.maxHp, member.hp + 1);
+        addLog(`🩸 [吸血] ${member.name} 恢复了 1 点生命。`);
+    }
+
+    const damage = (options.baseDamage || 1) + (isCritical ? 1 : 0);
+    if (combatState.type === 'group') {
+        const kills = damageEnemy(damage);
+        addLog(`${member.name} ${logDieIcon(roll)} ${isCritical ? '暴击' : `${attackName}命中`}！(${total} 对 AC ${enemy.ac}) 击倒 ${kills} 名敌人。`);
+    } else {
+        damageEnemy(damage);
+        addLog(`${member.name} ${logDieIcon(roll)} ${isCritical ? '暴击' : `${attackName}命中`}！(${total} 对 AC ${enemy.ac}) 造成 ${damage} 点伤害。`);
+    }
+    return true;
+}
+
+window.powerAttackCharacter = function(charIndex) {
+    if (gameState !== 'COMBAT' || !combatState.active) return;
+    const member = party[charIndex];
+    if (!member || member.hp <= 0 || combatState.actedIndices.includes(charIndex)) return;
+    if (member.status?.some(status => status.type === 'stun')) {
+        addLog({ type: 'warning', message: `${member.name} 正在眩晕，无法重击。` });
+        return;
+    }
+
+    const hasAdvantage = combatState.focusedIndices.includes(charIndex);
+    combatState.actedIndices.push(charIndex);
+    if (hasAdvantage) consumeFocus(charIndex);
+    const requests = [{ label: `${member.name} 重击 ${formatModifier(getAttackModifier(member) - 3)}`, id: 'power_1', sides: 20 }];
+    if (hasAdvantage) requests.push({ label: `${member.name} 蓄势优势`, id: 'power_2', sides: 20 });
+
+    rollDiceAnim(requests, results => {
+        const roll = hasAdvantage ? Math.max(results.power_1, results.power_2) : results.power_1;
+        if (hasAdvantage) addLog({ type: 'check', message: `🎯 ${member.name} 以优势进行重击，取较高点数 ${roll}。` });
+        resolvePlayerWeaponAttack(member, roll, { name: '重击', attackPenalty: -3, baseDamage: 2 });
+        if (!checkWin()) updateUI();
+    });
+};
+
 function fightRound() {
   if (gameState !== 'COMBAT' || !combatState.active) return;
-  
+
   const requests = [];
-  const activePartyMembers = []; 
+  const activePartyMembers = [];
 
   addLog(`--- 第 ${combatState.round} 回合 ---`);
   
@@ -250,8 +368,10 @@ function fightRound() {
 
       const canAct = processStatusEffects(p);
       if (p.hp > 0 && canAct) {
-          requests.push({ label: `${p.name} 攻击 ${formatModifier(getAttackModifier(p))}`, id: index, sides: 20 });
-          activePartyMembers.push(p);
+          const hasAdvantage = combatState.focusedIndices.includes(index);
+          requests.push({ label: `${p.name} 攻击 ${formatModifier(getAttackModifier(p))}`, id: `attack_${index}_1`, sides: 20 });
+          if (hasAdvantage) requests.push({ label: `${p.name} 蓄势优势`, id: `attack_${index}_2`, sides: 20 });
+          activePartyMembers.push({ member: p, index, hasAdvantage });
       } else if (!canAct) {
           combatState.actedIndices.push(index); 
       }
@@ -261,66 +381,28 @@ function fightRound() {
       if (checkWin()) return;
       if (!randomAliveCharacter()) { endCombat(false); return; }
       enemyTurn();
-      combatState.round++;
-      combatState.actedIndices = [];
-      combatState.defendingIndices = [];
-      if (combatState.active) planEnemyTurn();
+      if (combatState.active) advanceCombatRound();
       updateUI();
   };
 
   if (requests.length === 0) { finishTurn(); return; }
 
   rollDiceAnim(requests, (results) => {
-      const enemy = combatState.enemy;
       let hits = 0;
-      
-      activePartyMembers.forEach((p) => {
+
+      activePartyMembers.forEach(({ member: p, index: idx, hasAdvantage }) => {
           const isEnemyDead = isEnemyDefeated();
           if (!combatState.active || isEnemyDead) return;
 
-          const idx = party.indexOf(p);
-          const roll = results[idx];
-          
-          if (roll === 20) {
-              addLog(`🎲 <b>${p.name} 骰出自然 20！暴击并恢复 1 MP！</b>`);
-              if (p.mp < p.maxMp) p.mp++;
+          const firstRoll = results[`attack_${idx}_1`];
+          const secondRoll = results[`attack_${idx}_2`];
+          const roll = hasAdvantage ? Math.max(firstRoll, secondRoll) : firstRoll;
+          if (hasAdvantage) {
+              consumeFocus(idx);
+              addLog({ type: 'check', message: `🎯 ${p.name} 以优势攻击，取较高点数 ${roll}。` });
           }
           combatState.actedIndices.push(idx);
-
-          const attackModifier = getAttackModifier(p);
-          const total = roll + attackModifier;
-          
-          const rollIcon = logDieIcon(roll);
-          
-          const isCritical = roll === 20;
-          const isHit = isCritical || (roll !== 1 && total >= enemy.ac);
-          if (isHit) {
-              hits++;
-              
-              // 词缀效果
-              const wAffix = p.equipment?.weapon?.affix;
-              if (wAffix) {
-                  if (wAffix.effect === 'poison') {
-                      addLog(`🧪 [剧毒] ${p.name} 的武器使敌人中毒了！`);
-                      applyStatus(enemy, 'poison', 3);
-                  }
-                  if (wAffix.effect === 'lifesteal') {
-                      p.hp = Math.min(p.maxHp, p.hp + 1);
-                      addLog(`🩸 [吸血] ${p.name} 恢复了 1 点生命。`);
-                  }
-              }
-
-              const damage = isCritical ? 2 : 1;
-              if (combatState.type === 'group') {
-                  const kills = damageEnemy(damage);
-                  addLog(`${p.name} ${rollIcon} ${isCritical ? '暴击' : '命中'}！(${total} 对 AC ${enemy.ac}) 击倒 ${kills} 名敌人。`);
-              } else {
-                  damageEnemy(damage);
-                  addLog(`${p.name} ${rollIcon} ${isCritical ? '暴击' : '命中'}！(${total} 对 AC ${enemy.ac}) 造成 ${damage} 点伤害。`);
-              }
-          } else {
-              addLog(`${p.name} ${rollIcon} 攻击未命中。(${total} 对 AC ${enemy.ac})`);
-          }
+          if (resolvePlayerWeaponAttack(p, roll)) hits++;
       });
       
       const isEnemyDeadNow = isEnemyDefeated();
@@ -374,7 +456,7 @@ function enemyTurn() {
             const targetAC = getCharacterAC(target);
             const isCritical = roll === 20;
             if (isCritical || (roll !== 1 && total >= targetAC)) {
-                const damage = damageCharacter(target, isCritical ? 2 : 1);
+                const damage = damageCharacter(target, (isCritical ? 2 : 1) + (enemy.damageBonus || 0));
                 addLog(`❌ ${enemy.name} ${isCritical ? '自然 20 暴击' : '命中'} ${target.name}！（${total} 对 AC ${targetAC}，-${damage} HP）`);
                 
                 if (aAffix && aAffix.effect === 'thorns') {
@@ -495,10 +577,7 @@ function tryFlee() {
       } else {
         addLog(`逃跑失败！敌人截住了退路。`);
         enemyTurn();
-        combatState.round++;
-        combatState.actedIndices = [];
-        combatState.defendingIndices = [];
-        if (combatState.active) planEnemyTurn();
+        if (combatState.active) advanceCombatRound();
         updateUI();
       }
   });
@@ -544,6 +623,20 @@ window.resolveEncounter = function(room){
           room._encounterResolved = true;
       }
   }
+};
+
+window.focusCharacter = function(charIndex) {
+    if (gameState !== 'COMBAT' || !combatState.active) return;
+    const member = party[charIndex];
+    if (!member || member.hp <= 0 || combatState.actedIndices.includes(charIndex)) return;
+    if (member.status?.some(status => status.type === 'stun')) {
+        addLog({ type: 'warning', message: `${member.name} 正在眩晕，无法蓄势。` });
+        return;
+    }
+    combatState.actedIndices.push(charIndex);
+    if (!combatState.focusedIndices.includes(charIndex)) combatState.focusedIndices.push(charIndex);
+    addLog({ type: 'combat', message: `🎯 ${member.name} 观察敌人的破绽：下一次普攻或重击获得优势。` });
+    updateUI();
 };
 
 function grantHealingPotions(amount) {

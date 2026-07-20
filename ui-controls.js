@@ -74,7 +74,8 @@ function renderControls(){
     const roundInfo = document.createElement('div');
     roundInfo.style.cssText = "display:flex; justify-content:space-between; padding:6px 8px; margin-bottom:8px; background:#212121; color:#fff; font-family:'Special Elite', monospace;";
     const initiativeText = combatState.initiative?.side === 'enemy' ? '敌方先攻' : '我方先攻';
-    roundInfo.innerHTML = `<span>第 ${combatState.round} 回合 · ${initiativeText}</span><span>已行动 ${actedCount}/${aliveCount}</span>`;
+    const pressureText = combatState.escalationLevel > 0 ? ' · 险境' : '';
+    roundInfo.innerHTML = `<span>第 ${combatState.round} 回合 · ${initiativeText}${pressureText}</span><span>已行动 ${actedCount}/${aliveCount}</span>`;
     combatPanel.appendChild(roundInfo);
 
     const currentValue = combatState.type === 'group' ? Math.max(0, enemy.count) : Math.max(0, enemy.hp);
@@ -91,7 +92,7 @@ function renderControls(){
       <div style="height:8px; margin-top:6px; background:#e0e0e0; overflow:hidden">
         <div style="width:${healthPct}%; height:100%; background:#c62828"></div>
       </div>
-      <div style="margin-top:5px; font-size:0.8em; color:#555">AC ${enemy.ac || 10} · 攻击修正 ${formatModifier(enemy.attackBonus || 0)} · 豁免 DC ${enemy.saveDC || 10}</div>`;
+      <div style="margin-top:5px; font-size:0.8em; color:#555">AC ${enemy.ac || 10} · 攻击修正 ${formatModifier(enemy.attackBonus || 0)} · 伤害加值 ${formatModifier(enemy.damageBonus || 0)} · 豁免 DC ${enemy.saveDC || 10}${combatState.type === 'boss' ? ` · 阶段 ${combatState.bossPhase || 1}` : ''}</div>`;
     combatPanel.appendChild(enemyInfo);
 
     if (combatState.enemyIntent?.length) {
@@ -134,8 +135,9 @@ function renderControls(){
         const isStunned = member.status?.some(status => status.type === 'stun');
         const hasActed = combatState.actedIndices.includes(idx);
         const isDefending = combatState.defendingIndices?.includes(idx);
-        const stateText = isDead ? '阵亡' : isDefending ? '防御中' : hasActed ? '已行动' : isStunned ? '眩晕待结算' : '待行动';
-        const stateColor = isDead ? '#777' : hasActed ? '#2e7d32' : isStunned ? '#7b1fa2' : '#e65100';
+        const isFocused = combatState.focusedIndices?.includes(idx);
+        const stateText = isDead ? '阵亡' : isDefending ? '防御中' : isFocused ? '蓄势就绪' : hasActed ? '已行动' : isStunned ? '眩晕待结算' : '待行动';
+        const stateColor = isDead ? '#777' : isFocused ? '#1565c0' : hasActed ? '#2e7d32' : isStunned ? '#7b1fa2' : '#e65100';
         row.style.cssText = "display:flex; justify-content:space-between; padding:3px 6px; background:#fafafa; border-bottom:1px dotted #ddd;";
         row.innerHTML = `<span>${member.name} · AC ${getCharacterAC(member)} · HP ${member.hp}/${member.maxHp} · MP ${member.mp}/${member.maxMp}</span><b style="color:${stateColor}">${stateText}</b>`;
         actionList.appendChild(row);
@@ -188,6 +190,31 @@ function renderControls(){
             defendBtn.onclick = () => window.defendCharacter(idx);
         }
         skillsDiv.appendChild(defendBtn);
+
+        const powerBtn = document.createElement('button');
+        powerBtn.innerHTML = `<b>💥 ${p.name}</b><br><small>重击 · 命中 -3 / 伤害 2</small>`;
+        powerBtn.style.fontSize = "0.9em";
+        if (hasActed || isStunned) {
+            powerBtn.disabled = true;
+            powerBtn.style.opacity = 0.5;
+            powerBtn.innerHTML += hasActed ? " (已行动)" : " (眩晕)";
+        } else {
+            powerBtn.onclick = () => window.powerAttackCharacter(idx);
+        }
+        skillsDiv.appendChild(powerBtn);
+
+        const focusBtn = document.createElement('button');
+        const isFocused = combatState.focusedIndices?.includes(idx);
+        focusBtn.innerHTML = `<b>🎯 ${p.name}</b><br><small>蓄势 · 下次武器攻击获得优势</small>`;
+        focusBtn.style.fontSize = "0.9em";
+        if (hasActed || isStunned || isFocused) {
+            focusBtn.disabled = true;
+            focusBtn.style.opacity = 0.5;
+            focusBtn.innerHTML += isFocused ? " (已就绪)" : hasActed ? " (已行动)" : " (眩晕)";
+        } else {
+            focusBtn.onclick = () => window.focusCharacter(idx);
+        }
+        skillsDiv.appendChild(focusBtn);
     });
     combatPanel.appendChild(skillsDiv);
     

@@ -80,7 +80,7 @@ const ITEM_EFFECTS = {
 
 const MONSTER_SKILL_EFFECTS = {
     monster_poison_spit(user, target) {
-        const damage = damageCharacter(target, 1);
+        const damage = damageCharacter(target, 1 + (user.damageBonus || 0));
         const save = makeSavingThrow(target, 'con', user.saveDC || 10);
         if (!save.success) applyStatus(target, 'poison', 3);
         return `${user.name} 喷出一口毒液！${target.name} 受到 ${damage} 点伤害，${save.success ? '但通过体质豁免抵抗了毒素' : '并中毒了'}。`;
@@ -109,7 +109,7 @@ const MONSTER_SKILL_EFFECTS = {
 
     monster_smash(user, target) {
         const save = makeSavingThrow(target, 'str', user.saveDC || 10);
-        const damage = damageCharacter(target, save.success ? 1 : 2);
+        const damage = damageCharacter(target, (save.success ? 1 : 2) + (user.damageBonus || 0));
         return `${user.name} 蓄力重击！${target.name} ${save.success ? '通过力量豁免稳住身形，仍' : ''}受到了 ${damage} 点伤害！`;
     }
 };

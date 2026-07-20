@@ -109,7 +109,7 @@ function collectSaveData() {
         : null;
 
     return {
-        version: 1.8,
+        version: 1.9,
         timestamp: Date.now(),
         party: party,
         dungeon: dungeon,
@@ -258,10 +258,12 @@ function importSaveGame(data) {
         
         Object.assign(combatState, {
             active: false, type: null, enemy: null, round: 0,
-            actedIndices: [], defendingIndices: [], enemyIntent: [], initiative: null
+            actedIndices: [], defendingIndices: [], focusedIndices: [], enemyIntent: [], initiative: null,
+            bossPhase: 1, escalationLevel: 0
         }, data.combatState || {});
         if (!Array.isArray(combatState.actedIndices)) combatState.actedIndices = [];
         if (!Array.isArray(combatState.defendingIndices)) combatState.defendingIndices = [];
+        if (!Array.isArray(combatState.focusedIndices)) combatState.focusedIndices = [];
         if (!Array.isArray(combatState.enemyIntent)) combatState.enemyIntent = [];
         if (combatState.enemy) {
             if (combatState.type === 'group' && !combatState.enemy.maxCount) combatState.enemy.maxCount = combatState.enemy.count;
@@ -270,6 +272,7 @@ function importSaveGame(data) {
             const tierBonus = Math.floor((savedWorldLevel - 1) / 2);
             combatState.enemy.ac = combatState.enemy.ac || (combatState.type === 'boss' ? 13 : combatState.type === 'elite' ? 12 : 10) + tierBonus;
             combatState.enemy.attackBonus = combatState.enemy.attackBonus ?? 2 + (combatState.enemy.att || 0);
+            combatState.enemy.damageBonus = combatState.enemy.damageBonus || 0;
             combatState.enemy.saveDC = combatState.enemy.saveDC || 10 + tierBonus + (combatState.type === 'boss' ? 2 : combatState.type === 'elite' ? 1 : 0);
             if (!combatState.initiative && typeof rollCombatInitiative === 'function') combatState.initiative = rollCombatInitiative(combatState.enemy);
         }
